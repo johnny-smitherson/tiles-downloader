@@ -54,7 +54,7 @@ pub fn load_config() -> anyhow::Result<LinksConfig> {
         assert!(
             tile_server.servers.is_none()
                 || (tile_server.servers.is_some()
-                    && tile_server.servers.as_ref().unwrap().len() > 0)
+                    && !tile_server.servers.as_ref().unwrap().is_empty())
         );
     }
 

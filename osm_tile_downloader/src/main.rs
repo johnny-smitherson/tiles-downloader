@@ -6,12 +6,12 @@ use std::path::PathBuf;
 use anyhow::Context;
 use config::TileServerConfig;
 use rand::{self, seq::SliceRandom};
-use reqwest::dns::Name;
+
 use rocket::fs::NamedFile;
-use rocket::response::status::NotFound;
+
 
 mod rocket_anyhow;
-pub(crate) use rocket_anyhow::bail;
+
 
 pub(crate) mod config;
 
@@ -20,7 +20,7 @@ lazy_static::lazy_static! {
 
     pub static ref SLED_DB: sled::Db = sled::open(LINKS_CONFIG.db_location.clone()).expect("cannot open db:");
 
-    pub static ref DB_TILE_SERVER_CONFIGS: typed_sled::Tree::<String, config::TileServerConfig> = typed_sled::Tree::<String, config::TileServerConfig>::open(&*SLED_DB, "tile_server_configs");
+    pub static ref DB_TILE_SERVER_CONFIGS: typed_sled::Tree::<String, config::TileServerConfig> = typed_sled::Tree::<String, config::TileServerConfig>::open(&SLED_DB, "tile_server_configs");
 }
 
 #[get("/health_check")]
@@ -83,7 +83,7 @@ struct ImageFetchDescriptor {
 
 impl ImageFetchDescriptor {
     fn validate(
-        self: &Self,
+        &self,
         server_config: &TileServerConfig,
     ) -> rocket_anyhow::Result<()> {
         if server_config.max_level < self.z {
@@ -134,7 +134,7 @@ impl ImageFetchDescriptor {
                 self.x, self.y, self.z
             )
         })?;
-        target.push(format!("{}.{}", self.y.to_string(), self.extension));
+        target.push(format!("{}.{}", self.y, self.extension));
 
         // let file = File::create(target).await?;
         Ok(target)
@@ -176,13 +176,13 @@ async fn main() -> rocket_anyhow::Result<()> {
     );
     for server_config in &mut *LINKS_CONFIG.servers.clone() {
         DB_TILE_SERVER_CONFIGS
-            .insert(&server_config.name, &server_config)
+            .insert(&server_config.name, server_config)
             .context("cannot write to db:")?;
     }
 
     for db_tree_name in (*SLED_DB).tree_names().iter() {
         let tree = (*SLED_DB)
-            .open_tree(&db_tree_name)
+            .open_tree(db_tree_name)
             .context("cannot open db tree: ")?;
         eprintln!(
             "found db tree {:?}: len = {}",

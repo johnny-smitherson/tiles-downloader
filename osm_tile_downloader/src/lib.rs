@@ -51,8 +51,7 @@ use futures::{prelude::*, stream};
 use indicatif::ProgressBar;
 use rand::{self, seq::SliceRandom};
 use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client, StatusCode,
+    Client,
 };
 use std::{
     collections::HashMap,
@@ -65,8 +64,7 @@ use std::{
 };
 use tokio::{
     self,
-    fs::{self, File},
-    io, time,
+    fs::{self}, time,
 };
 
 const BACKOFF_DELAY: Duration = Duration::from_secs(10);
@@ -237,16 +235,16 @@ impl BoundingBox {
     /// Panics if the coordinates are < 0, or >= 2π.
     pub fn new(north: f64, east: f64, south: f64, west: f64) -> Self {
         assert!(
-            north >= -0.5f64 * f64::consts::PI && north <= 0.5f64 * f64::consts::PI
+            (-0.5f64 * f64::consts::PI..=0.5f64 * f64::consts::PI).contains(&north)
         );
         assert!(
-            south >= -0.5f64 * f64::consts::PI && south <= 0.5f64 * f64::consts::PI
+            (-0.5f64 * f64::consts::PI..=0.5f64 * f64::consts::PI).contains(&south)
         );
         assert!(
-            east >= -1.0f64 * f64::consts::PI && east <= 1.0f64 * f64::consts::PI
+            (-1.0f64 * f64::consts::PI..=1.0f64 * f64::consts::PI).contains(&east)
         );
         assert!(
-            west >= -1.0f64 * f64::consts::PI && west <= 1.0f64 * f64::consts::PI
+            (-1.0f64 * f64::consts::PI..=1.0f64 * f64::consts::PI).contains(&west)
         );
 
         BoundingBox {
@@ -309,11 +307,11 @@ impl Tile {
     /// Fetches the given tile from the given URL using the given HTTP client.
     pub async fn fetch_from(
         self,
-        client: &Client,
+        _client: &Client,
         url_fmt: &str,
         output_folder: &Path,
     ) -> Result<()> {
-        const OSM_SERVERS: &[&'static str] = &["a", "b", "c"];
+        const OSM_SERVERS: &[&str] = &["a", "b", "c"];
 
         let formatted_url = {
             let mut map = HashMap::with_capacity(4);
@@ -343,7 +341,7 @@ impl Tile {
                     self.x, self.y, self.z
                 )
             })?;
-            target.push(format!("{}.png", self.y.to_string()));
+            target.push(format!("{}.png", self.y));
 
             // let file = File::create(target).await?;
             target
