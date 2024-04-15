@@ -1,0 +1,86 @@
+user_agents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+]
+fetch_rate = 100
+timeout_secs = 20
+retries = 3
+db_location = "./data.sled"
+tile_location = "./data.tiles"
+
+
+[[servers]]
+name = "osm_tiles"
+comment = "https://openstreetmap.org"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+width = 256
+height = 256
+max_level = 23
+img_type = "png"
+map_type = "tiles"
+
+[[servers]]
+name = "osm_tiles2"
+comment = "https://openstreetmap.org"
+url = "https://tile.tracestrack.com/topo__/{z}/{x}/{y}.png"
+width = 512
+height = 512
+max_level = 23
+img_type = "png"
+map_type = "tiles"
+
+
+
+[[servers]]
+name = "yandex_tiles"
+comment = "https://yandex.com/maps"
+url = "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction&ads=enabled"
+width = 512
+height = 512
+max_level = 23
+img_type = "png"
+map_type = "tiles"
+
+[[servers]]
+name = "google_sat"
+comment = "https://google.com/maps"
+url = "https://khms{s}.google.com/kh/v=969?x={x}&y={y}&z={z}"
+servers = ["0", "1", "2", "3"]
+width = 256
+height = 256
+max_level = 23
+img_type = "jpg"
+map_type = "sat"
+
+[[servers]]
+name = "yandex_sat"
+comment = "https://yandex.com/maps"
+url = "https://sat0{s}.maps.yandex.net/tiles?l=sat&v=3.1168.0&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps"
+servers = ["0", "1", "2", "3"]
+width = 512
+height = 512
+max_level = 23
+img_type = "jpg"
+map_type = "sat"
+
+# [yandex.overlay]
+# url = https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&v=24.04.13-1-b240404173730&x=10&y=6&z=4&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction
+
+[[servers]]
+name = "nasa_sat"
+comment = "https://zoom.earth/maps"
+url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-04-13/GoogleMapsCompatible_Level9/{z}/{x}/{y}.jpg"
+max_level = 9
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[servers]]
+name = "usgs_sat"
+comment = "https://earthexplorer.usgs.gov/"
+url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}"
+max_level = 18
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"

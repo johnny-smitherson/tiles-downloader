@@ -1,0 +1,29 @@
+[package]
+name = "osm_tile_downloader"
+description = "Download tiles from an OpenStreetMap tileserver to the file system"
+version = "0.2.4"
+authors = ["Moritz Gunz <moritz.gunz@gmail.com>"]
+edition = "2021"
+
+repository = "https://github.com/NeoLegends/osm-tile-downloader"
+keywords = ["open", "street", "map", "osm", "tile"]
+categories = ["command-line-utilities"]
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.82"
+clap = {version = "4.5.4", features=["cargo"]}
+futures = "0.3.30"
+image = "0.25.1"
+indicatif = "0.17.8"
+lazy_static = "1.4.0"
+rand = "0.8.5"
+reqwest = { version = "0.12", features = ["stream"] }
+rocket = "0.5.0"
+serde = "1.0.197"
+strfmt = "0.2.4"
+tokio = { version = "1.37.0", features = ["fs", "macros",  "time", "rt-multi-thread", "process"] }
+toml = "0.8.12"
+sled = "0.34.7"
+typed-sled = "0.2.3"
