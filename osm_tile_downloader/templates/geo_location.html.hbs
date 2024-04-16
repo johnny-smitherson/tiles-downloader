@@ -1,0 +1,36 @@
+<h1>{{display_name}}  {{geo_point}} </h1>
+<h2>{{q_location}}</h2>
+
+<table style="flex-direction:row">
+  
+
+{{#each tileserver_with_links}}
+
+<tr style="width:fit-content;">
+
+  <td>
+
+  <h1>{{this.srv.name}}</h1>
+  <p>     max level {{this.srv.max_level}}</p> 
+  </td>
+  {{#each this.links}}
+  <td  style="width:fit-content">
+
+   
+    <img 
+    src="{{this.3}}"
+     height="256" 
+     width="256"
+   ></img>
+  <b><pre> Z = {{this.0}} X = {{this.1}} Y = {{this.2}}</pre></b>
+
+  </td>
+  {{/each}}
+   
+   
+</div>
+
+{{/each}}
+
+
+</div>

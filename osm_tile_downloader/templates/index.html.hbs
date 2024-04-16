@@ -1,0 +1,39 @@
+<h1>index servers</h1>
+
+all stuff here
+
+{{#each tile_servers}}
+  <h1>{{this.name}}</h1>
+  <p>     max level {{this.max_level}}</p> 
+  <p>     img type {{this.img_type}}</p> 
+  <p>     img size {{this.width}} x {{this.height}}</p> 
+  <p>     map type {{this.map_type}}</p> 
+
+  <img 
+    src="/api/tile/{{this.name}}/0/0/0/{{this.img_type}}"
+     height="256" 
+     width="256"
+   ></img>
+
+     <img 
+    src="/api/tile/{{this.name}}/1/0/0/{{this.img_type}}"
+     height="256" 
+     width="256"
+   ></img>
+   
+   <img 
+    src="/api/tile/{{this.name}}/1/0/1/{{this.img_type}}"
+     height="256" 
+     width="256"
+   ></img>
+   
+    <img 
+    src="/api/tile/{{this.name}}/1/1/0/{{this.img_type}}"
+     height="256" 
+     width="256"
+   ></img>
+
+
+   
+{{/each}}
+

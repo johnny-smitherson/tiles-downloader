@@ -1,26 +1,33 @@
+pub(crate) mod config;
+pub(crate) mod download;
+pub(crate) mod geo_trig;
+pub(crate) mod rocket_anyhow;
+
 #[macro_use]
 extern crate rocket;
 
-use std::path::PathBuf;
-
+use anyhow::anyhow;
 use anyhow::Context;
+use config::init_database;
 use config::TileServerConfig;
-use rand::{self, seq::SliceRandom};
-
+use geojson::Bbox;
+use image::DynamicImage;
+use rocket::form::Form;
 use rocket::fs::NamedFile;
 
+use config::{ImageFetchDescriptor, DB_TILE_SERVER_CONFIGS, LINKS_CONFIG};
 
-mod rocket_anyhow;
+use rocket_dyn_templates::context;
+use rocket_dyn_templates::Template;
 
-
-pub(crate) mod config;
-
-lazy_static::lazy_static! {
-    pub static ref LINKS_CONFIG: config::LinksConfig = config::load_config().expect("bad config:");
-
-    pub static ref SLED_DB: sled::Db = sled::open(LINKS_CONFIG.db_location.clone()).expect("cannot open db:");
-
-    pub static ref DB_TILE_SERVER_CONFIGS: typed_sled::Tree::<String, config::TileServerConfig> = typed_sled::Tree::<String, config::TileServerConfig>::open(&SLED_DB, "tile_server_configs");
+#[get("/")]
+fn index() -> rocket_anyhow::Result<Template> {
+    Ok(Template::render(
+        "index",
+        context! {
+            tile_servers: config::get_all_tile_servers()?,
+        },
+    ))
 }
 
 #[get("/health_check")]
@@ -33,169 +40,279 @@ async fn favicon() -> Option<NamedFile> {
     NamedFile::open("./0.png").await.ok()
 }
 
-#[get("/info/server/<server>")]
-fn info_server(server: String) -> String {
-    format!("ok. server: {:#?}", server)
+#[get("/api/geo/<q_location>/json")]
+async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
+    let geojson_path = crate::download::search_geojson_to_disk(q_location).await?;
+
+    Ok(NamedFile::open(&geojson_path)
+        .await
+        .with_context(|| format!("file missing from disk: {:?}", &geojson_path))?)
 }
 
-#[get("/info/zoom/<zoom>")]
-fn info_zoom(zoom: u8) -> String {
-    format!("ok. zoom: {:#?}", zoom)
-}
-
-#[get("/tile/<server_name>/<z>/<x>/<y>/<extension>")]
-async fn tile_get_file(
-    server_name: String,
-    x: u64,
-    y: u64,
-    z: u8,
-    extension: String,
-) -> Result<NamedFile, rocket_anyhow::Error> {
-    let server_config = DB_TILE_SERVER_CONFIGS
-        .get(&server_name.to_owned())
-        .context("db get error")?
-        .with_context(|| format!("server_name not found: '{}'", &server_name))?;
-
-    let fetch_info = ImageFetchDescriptor {
-        x,
-        y,
-        z,
-        server_name,
-        extension,
-    };
-    fetch_info.validate(&server_config)?;
-
-    let path = fetch_info.get_disk_path(&server_config).await?;
-
-    Ok(
-        NamedFile::open(&path).await
-            .with_context(|| format!("file missing from disk: {:?}", &path))?
-    )
-}
-
-struct ImageFetchDescriptor {
-    x: u64,
-    y: u64,
-    z: u8,
-    server_name: String,
-    extension: String,
-}
-
-impl ImageFetchDescriptor {
-    fn validate(
-        &self,
-        server_config: &TileServerConfig,
-    ) -> rocket_anyhow::Result<()> {
-        if server_config.max_level < self.z {
-            rocket_anyhow::bail!(
-                "got z = {} when max for server is {}",
-                self.z,
-                server_config.max_level
-            );
-        };
-        if self.z < 1 {
-            rocket_anyhow::bail!("got z = {} when min for server is {}", self.z, 1);
-        };
-        if !(self.extension.eq(&server_config.img_type)) {
-            rocket_anyhow::bail!(
-                "got extension = {} when server img_type is {}",
-                &self.extension,
-                &server_config.img_type
-            );
-        };
-        let max_extent = 2u64.pow(self.z.into()) - 1;
-        if !(self.x <= max_extent && self.y <= max_extent) {
-            rocket_anyhow::bail!(
-                "x={}, y={} not inside extent={} for z={}",
-                self.x,
-                self.y,
-                max_extent,
-                self.z
-            );
+#[get("/geo/<q_location>")]
+async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
+    let geo_collection = download::search_geojson(q_location).await?;
+    if geo_collection.features.is_empty() {
+        return Err(anyhow!(
+            "no features found after searching for '{}'",
+            q_location
+        )
+        .into());
+    }
+    let geo_point = &geo_collection.features[0]
+        .geometry
+        .clone()
+        .context("no geometry?")?
+        .value;
+    let geo_point = {
+        if let geojson::Value::Point(coords) = geo_point {
+            (coords[0], coords[1])
+        } else {
+            return Err(anyhow!("geometry was not point - ").into());
         }
-        Ok(())
+    };
+    let bbox = &geo_collection.features[0].bbox.clone();
+    let display_name = geo_collection.features[0]
+        .properties
+        .clone()
+        .context("no properties")?
+        .get("display_name")
+        .context("no display name?")?
+        .clone();
+    let tile_servers = config::get_all_tile_servers()?;
+    #[derive(serde::Serialize)]
+    struct TileServerEntry {
+        srv: TileServerConfig,
+        links: Vec<(u8, u64, u64, String)>,
     }
-    async fn get_disk_path(
-        self: &ImageFetchDescriptor,
-        server_config: &TileServerConfig,
-    ) -> rocket_anyhow::Result<PathBuf> {
-        assert!(server_config.name.eq(&self.server_name));
-        assert!(server_config.img_type.eq(&self.extension));
-        let mut target = LINKS_CONFIG
-            .tile_location
-            .clone()
-            .join(&server_config.map_type)
-            .join(&server_config.name)
-            .join(self.z.to_string())
-            .join(self.x.to_string());
-        tokio::fs::create_dir_all(&target).await.with_context(|| {
-            format!(
-                "failed creating output directory for tile {}x{}x{}",
-                self.x, self.y, self.z
-            )
-        })?;
-        target.push(format!("{}.{}", self.y, self.extension));
+    let tile_servers: Vec<_> = tile_servers
+        .iter()
+        .map(|srv| TileServerEntry {
+            srv: srv.clone(),
+            links: (1..=srv.max_level)
+                .map(|z| {
+                    let (x, y) = geo_trig::tile_index(z, geo_point.0, geo_point.1);
+                    let server_name = srv.name.clone();
+                    let ext = srv.img_type.clone();
+                    let overlay = OverlayDrawCoordinates {
+                        point: Some(OverlayDrawPoint {
+                            point_0: geo_point.0,
+                            point_1: geo_point.1,
+                        }),
+                        bbox: if bbox.is_none() {
+                            None
+                        } else {
+                            let bbox = bbox.clone().unwrap();
+                            Some(OverlayDrawBox {
+                                bbox_0: bbox[0],
+                                bbox_1: bbox[1],
+                                bbox_2: bbox[2],
+                                bbox_3: bbox[3],
+                            })
+                        },
+                    };
+                    let the_uri = uri!(get_tile_with_overlay(
+                        server_name = server_name,
+                        x = x,
+                        y = y,
+                        z = z,
+                        extension = ext,
+                        overlay_coordinates = overlay
+                    ));
+                    (
+                        z,
+                        x,
+                        y,
+                        format!(
+                            "{}?{}",
+                            the_uri.path().as_str(),
+                            the_uri.query().unwrap().as_str()
+                        ),
+                    )
+                })
+                .collect(),
+        })
+        .collect();
+    Ok(Template::render(
+        "geo_location",
+        context! {
+            tileserver_with_links: tile_servers,
+            geo_point: geo_point,
+            display_name: display_name,
+            q_location: q_location,
+            geo_collection: geo_collection,
+        },
+    ))
+}
 
-        // let file = File::create(target).await?;
-        Ok(target)
+#[get("/api/tile/<server_name>/<z>/<x>/<y>/<extension>")]
+async fn get_tile(
+    server_name: &str,
+    x: u64,
+    y: u64,
+    z: u8,
+    extension: &str,
+) -> rocket_anyhow::Result<NamedFile> {
+    let path = crate::download::get_tile(server_name, x, y, z, extension).await?;
+
+    Ok(NamedFile::open(&path)
+        .await
+        .with_context(|| format!("file missing from disk: {:?}", &path))?)
+}
+
+#[derive(FromForm, UriDisplayQuery)]
+struct OverlayDrawPoint {
+    point_0: f64,
+    point_1: f64,
+}
+
+#[derive(FromForm, UriDisplayQuery)]
+struct OverlayDrawBox {
+    bbox_0: f64,
+    bbox_1: f64,
+    bbox_2: f64,
+    bbox_3: f64,
+}
+
+#[derive(FromForm, UriDisplayQuery)]
+struct OverlayDrawCoordinates {
+    point: Option<OverlayDrawPoint>,
+    bbox: Option<OverlayDrawBox>,
+}
+use rocket::http::ContentType;
+use rocket::http::Status;
+use rocket::response::Responder;
+use rocket::Response;
+use std::f64::consts::PI;
+use std::io::Cursor;
+use tokio::task::spawn_blocking;
+
+pub struct ImageResponse {
+    img_bytes: Vec<u8>,
+    content_type: ContentType,
+}
+
+#[rocket::async_trait]
+impl<'r> Responder<'r, 'static> for ImageResponse {
+    fn respond_to(
+        self,
+        _: &'r rocket::Request<'_>,
+    ) -> rocket::response::Result<'static> {
+        Response::build()
+            .header(self.content_type)
+            .sized_body(self.img_bytes.len(), Cursor::new(self.img_bytes))
+            .ok()
     }
+}
 
-    fn get_some_url(
-        self: &ImageFetchDescriptor,
-        server_config: &TileServerConfig,
-    ) -> rocket_anyhow::Result<String> {
-        use std::collections::HashMap;
-        let mut map: HashMap<String, String> = HashMap::with_capacity(10);
-        let server_bit = {
-            if server_config.servers.is_none() {
-                "".to_owned()
-            } else {
-                server_config
-                    .servers
-                    .as_ref().context("empty server letter")?
-                    .choose(&mut rand::thread_rng())
-                    .context("empty server vector")?
-                    .to_owned()
+#[get("/api/tile_with_overlay/<server_name>/<z>/<x>/<y>/<extension>?<overlay_coordinates..>")]
+async fn get_tile_with_overlay(
+    server_name: &str,
+    x: u64,
+    y: u64,
+    z: u8,
+    extension: &str,
+    overlay_coordinates: OverlayDrawCoordinates,
+) -> rocket_anyhow::Result<ImageResponse> {
+    let path = crate::download::get_tile(server_name, x, y, z, extension).await?;
+    let server_config = config::get_tile_server(server_name)?;
+    let (img_type, img) =
+        download::validate_fetched_tile(&path, &server_config).await?;
+    assert!(img_type.eq(extension));
+    let content_type =
+        ContentType::from_extension(extension).context("bad extension?")?;
+    let image_format = match extension {
+        "png" => image::ImageFormat::Png,
+        "jpg" => image::ImageFormat::Jpeg,
+        _ => rocket_anyhow::bail!("bad format: {}", extension),
+    };
+
+    let b_px = overlay_coordinates.point.context("no point coord!")?;
+    let b_px = geo_trig::tile_index_float(z, b_px.point_0, b_px.point_1);
+
+    let tile2pixel = |point: (f64, f64)| {
+        (
+            ((point.0 - x as f64) * server_config.width as f64) as i32,
+            ((point.1 - y as f64) * server_config.width as f64) as i32,
+        )
+    };
+    let b_px = tile2pixel(b_px);
+
+    let b_bbox = overlay_coordinates.bbox.context("no bbox")?;
+    let bbox0 = geo_trig::tile_index_float(z, b_bbox.bbox_0, b_bbox.bbox_1);
+    let bbox1 = geo_trig::tile_index_float(z, b_bbox.bbox_2, b_bbox.bbox_3);
+    let bbox0 = tile2pixel(bbox0);
+    let bbox1 = tile2pixel(bbox1);
+    let b_bbox = [bbox0, bbox1, (bbox1.0, bbox0.1), (bbox0.0, bbox1.1)];
+
+    eprintln!("point: {:?}  bbox: {:?}", b_px, b_bbox);
+
+    let img_bytes = spawn_blocking(move || {
+        let mut img = img.into_rgb8();
+        // let b_px: (i32, i32) = (127, 127);
+        // let b_bbox: (i32, i32, i32, i32) = (32, 32, 172, 172);
+        let line_len: i32 = 10;
+        for pixel in img.enumerate_pixels_mut() {
+            let current_pixel = (pixel.0 as i32, pixel.1 as i32);
+
+            let hit_point_cross = |cxx: (i32, i32)| {
+                (current_pixel.0 - cxx.0 == current_pixel.1 - cxx.1
+                    && (current_pixel.0 - cxx.0).abs() <= line_len)
+                    || (current_pixel.0 - cxx.0 == -current_pixel.1 + cxx.1
+                        && (current_pixel.0 - cxx.0).abs() <= line_len)
+            };
+
+            if hit_point_cross(b_px) {
+                *pixel.2 = pixel_max_contrast(pixel.2);
             }
-        };
+            if current_pixel.0 == b_bbox[0].0
+                || current_pixel.0 == b_bbox[1].0
+                || current_pixel.1 == b_bbox[0].1
+                || current_pixel.1 == b_bbox[1].1
+            {
+                *pixel.2 = pixel_max_contrast(pixel.2);
+            }
+        }
 
-        map.insert("s".to_owned(), server_bit);
-        map.insert("x".to_owned(), self.x.to_string());
-        map.insert("y".to_owned(), self.y.to_string());
-        map.insert("z".to_owned(), self.z.to_string());
+        let mut img_bytes: Vec<u8> = Vec::new();
+        img.write_to(&mut Cursor::new(&mut img_bytes), image_format)
+            .unwrap();
+        img_bytes
+    })
+    .await?;
+    let img_response = ImageResponse {
+        img_bytes,
+        content_type,
+    };
+    Ok(img_response)
+}
 
-        Ok(strfmt::strfmt(&server_config.url, &map).context("failed strfmt on URL")?)
-    }
+fn pixel_max_contrast(px: &image::Rgb<u8>) -> image::Rgb<u8> {
+    image::Rgb::<u8>([
+        if px.0[0] > 127 { 0 } else { 255 },
+        if px.0[1] > 127 { 0 } else { 255 },
+        if px.0[2] > 127 { 0 } else { 255 },
+    ])
 }
 
 #[rocket::main]
 async fn main() -> rocket_anyhow::Result<()> {
-    eprintln!(
-        "ok. Config: {} ...",
-        &format!("{:#?}", *LINKS_CONFIG).as_str()[..200]
-    );
-    for server_config in &mut *LINKS_CONFIG.servers.clone() {
-        DB_TILE_SERVER_CONFIGS
-            .insert(&server_config.name, server_config)
-            .context("cannot write to db:")?;
-    }
-
-    for db_tree_name in (*SLED_DB).tree_names().iter() {
-        let tree = (*SLED_DB)
-            .open_tree(db_tree_name)
-            .context("cannot open db tree: ")?;
-        eprintln!(
-            "found db tree {:?}: len = {}",
-            String::from_utf8_lossy(db_tree_name),
-            tree.len()
-        )
-    }
+    init_database().await?;
 
     let _rocket = rocket::build()
         .mount(
             "/",
-            routes![health_check, favicon, info_server, info_zoom, tile_get_file],
+            routes![
+                index,
+                health_check,
+                favicon,
+                get_tile,
+                get_tile_with_overlay,
+                geo_search_json,
+                geo_index,
+            ],
         )
+        .attach(Template::fairing())
         .launch()
         .await?;
 

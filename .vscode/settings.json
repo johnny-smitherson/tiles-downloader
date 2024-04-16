@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        ".\\osm_tile_downloader\\Cargo.toml",
+        ".\\crooked_earth\\Cargo.toml"
+    ]
+}

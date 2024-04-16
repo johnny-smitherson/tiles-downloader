@@ -50,9 +50,6 @@ use anyhow::{Context, Result};
 use futures::{prelude::*, stream};
 use indicatif::ProgressBar;
 use rand::{self, seq::SliceRandom};
-use reqwest::{
-    Client,
-};
 use std::{
     collections::HashMap,
     f64,
@@ -165,25 +162,19 @@ pub async fn fetch(cfg: Config<'_>) -> Result<()> {
 
     let pb = ProgressBar::new(cfg.tiles().count() as u64);
 
-    let mut builder = Client::builder();
     if cfg.timeout > ZERO_DURATION {
-        builder = builder.timeout(cfg.timeout);
     }
 
-    let client = builder
-        .build()
-        .with_context(|| "failed creating HTTP client")?;
 
     stream::iter(pb.wrap_iter(cfg.tiles()))
         .for_each_concurrent(cfg.fetch_rate as usize, |tile| {
-            let http_client = client.clone();
 
             async move {
                 let mut res = Ok(());
 
                 for _ in 0..cfg.request_retries_amount {
                     res = tile
-                        .fetch_from(&http_client, cfg.url, cfg.output_folder)
+                        .fetch_from(cfg.url, cfg.output_folder)
                         .await;
 
                     if res.is_ok() {
@@ -293,184 +284,5 @@ impl BoundingBox {
                 (top_y..=bot_y).map(move |y| Tile { x, y, z: level })
             })
         })
-    }
-}
-
-impl Config<'_> {
-    /// Creates an iterator iterating over all tiles in the contained bounding box.
-    pub fn tiles(&self) -> impl Iterator<Item = Tile> + Debug {
-        self.bounding_box.tiles(self.zoom_level)
-    }
-}
-
-impl Tile {
-    /// Fetches the given tile from the given URL using the given HTTP client.
-    pub async fn fetch_from(
-        self,
-        _client: &Client,
-        url_fmt: &str,
-        output_folder: &Path,
-    ) -> Result<()> {
-        const OSM_SERVERS: &[&str] = &["a", "b", "c"];
-
-        let formatted_url = {
-            let mut map = HashMap::with_capacity(4);
-            map.insert(
-                "s".to_owned(),
-                OSM_SERVERS
-                    .choose(&mut rand::thread_rng())
-                    .unwrap()
-                    .to_string(),
-            );
-            map.insert("x".to_owned(), self.x.to_string());
-            map.insert("y".to_owned(), self.y.to_string());
-            map.insert("z".to_owned(), self.z.to_string());
-
-            strfmt::strfmt(url_fmt, &map).context("failed formatting URL")?
-        };
-
-        let output_file = {
-            let mut target = output_folder
-                .join("osm")
-                .join("base")
-                .join(self.z.to_string());
-            target.push(self.x.to_string());
-            fs::create_dir_all(&target).await.with_context(|| {
-                format!(
-                    "failed creating output directory for tile {}x{}x{}",
-                    self.x, self.y, self.z
-                )
-            })?;
-            target.push(format!("{}.png", self.y));
-
-            // let file = File::create(target).await?;
-            target
-        };
-
-        if output_file.as_path().exists() {
-            eprintln!("file already exists: {:?}", output_file);
-            return Ok(());
-        }
-
-        let mut curl_cmd = tokio::process::Command::new("./libexec/curl.exe");
-        curl_cmd
-            .arg("-s")
-            .arg("-o").arg(output_file)
-            .arg("--user-agent").arg("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0")
-            .arg("--socks5-hostname").arg("127.0.0.1:9050")
-            .arg(formatted_url);
-        eprint!("running curl: {:?}", curl_cmd);
-        let mut curl = curl_cmd.spawn()?;
-        let curl_status = curl.wait().await?;
-        if !curl_status.success() {
-            return Err(
-                IoError::new(ErrorKind::NotFound, "curl failed to fetch").into()
-            );
-        }
-
-        // let response_chunks = loop {
-        //     let raw_response =
-        //         client.get(&formatted_url).send().await.with_context(|| {
-        //             format!("failed fetching tile {}x{}x{}", self.x, self.y, self.z)
-        //         })?;
-
-        //     if raw_response.status() == StatusCode::TOO_MANY_REQUESTS {
-        //         let retry_after = raw_response
-        //             .headers()
-        //             .get("Retry-After")
-        //             .and_then(|v| v.to_str().ok())
-        //             .and_then(|val| val.parse::<u64>().ok())
-        //             .map(Duration::from_secs)
-        //             .unwrap_or(BACKOFF_DELAY);
-
-        //         time::sleep(retry_after).await;
-        //         continue;
-        //     }
-
-        //     let response_stream : Vec<_> = raw_response
-        //         .error_for_status()
-        //         .with_context(|| {
-        //             format!(
-        //                 "received invalid status code fetching tile {}x{}x{}",
-        //                 self.x, self.y, self.z
-        //             )
-        //         })?
-        //         .bytes_stream()
-        //         .map_err(|e| IoError::new(ErrorKind::Other, e))
-        //         .collect().await;
-
-        //     let mut final_chunks = Vec::<_>::new();
-        //     // if response_stream.into_iter().map(|x| x.is_err()).reduce(|x, y| x | y).unwrap_or(true) {
-        //     //     format!("failed to get chunk for tile {}x{}x{}", self.x, self.y, self.z);
-        //     //     continue;
-        //     // }
-        //     for chunk in response_stream {
-        //         final_chunks.push(chunk?);
-        //     }
-        //     break final_chunks;
-        // };
-
-        //     // Do an asynchronous, buffered copy of the download to the output file
-        //     use tokio::io::AsyncWriteExt;
-        //     for chunk in response_chunks {
-        //         output_file.write(&chunk).await?;
-        //     }
-        //     output_file.flush().await?;
-
-        // io::copy(&mut response_reader.into(), &mut output_file)
-        //     .await
-        //     .with_context(|| {
-        //         format!(
-        //             "failed streaming tile {}x{}x{} to disk",
-        //             self.x, self.y, self.z
-        //         )
-        //     })?;
-
-        Ok(())
-    }
-}
-
-fn tile_indices(zoom: u8, lon_rad: f64, lat_rad: f64) -> (usize, usize) {
-    assert!(zoom > 0);
-    // assert!(lon_rad >= 0.0);
-    // assert!(lat_rad >= 0.0);
-
-    let tile_x = {
-        let deg = (lon_rad + f64::consts::PI) / (2f64 * f64::consts::PI);
-
-        deg * 2f64.powi(zoom as i32)
-    };
-    let tile_y = {
-        let trig = (lat_rad.tan() + (1f64 / lat_rad.cos())).ln();
-        let inner = 1f64 - (trig / f64::consts::PI);
-
-        inner * 2f64.powi(zoom as i32 - 1)
-    };
-
-    (tile_x as usize, tile_y as usize)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[should_panic]
-    fn bbox_panics_deg() {
-        BoundingBox::new_deg(360.0, 0.0, 0.0, 0.0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn bbox_panics_rad() {
-        BoundingBox::new(7.0, 3.0, 3.0, 3.0);
-    }
-
-    #[test]
-    fn tile_index() {
-        assert_eq!(
-            tile_indices(18, 6.0402f64.to_radians(), 50.7929f64.to_radians()),
-            (135470, 87999)
-        );
     }
 }
