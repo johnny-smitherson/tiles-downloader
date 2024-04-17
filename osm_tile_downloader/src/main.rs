@@ -152,12 +152,17 @@ async fn get_tile(
     y: u64,
     z: u8,
     extension: &str,
-) -> rocket_anyhow::Result<NamedFile> {
+) -> rocket_anyhow::Result<Option<NamedFile>> {
+    let extension = extension.to_owned();
+    let extension = if extension.contains(".") {extension.split(".").last().context("??")?} else {extension.as_str()};
+    if !extension.eq("png") && !extension.eq("jpg") {
+        return Ok(None)
+    }
     let path = crate::download::get_tile(server_name, x, y, z, extension).await?;
 
-    Ok(NamedFile::open(&path)
+    Ok(Some(NamedFile::open(&path)
         .await
-        .with_context(|| format!("file missing from disk: {:?}", &path))?)
+        .with_context(|| format!("file missing from disk: {:?}", &path))?))
 }
 
 #[derive(FromForm, UriDisplayQuery)]

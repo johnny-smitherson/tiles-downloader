@@ -47,7 +47,7 @@ url = "https://khms{s}.google.com/kh/v=969?x={x}&y={y}&z={z}"
 servers = ["0", "1", "2", "3"]
 width = 256
 height = 256
-max_level = 22
+max_level = 23
 img_type = "jpg"
 map_type = "sat"
 
@@ -58,7 +58,7 @@ url = "https://sat0{s}.maps.yandex.net/tiles?l=sat&v=3.1168.0&x={x}&y={y}&z={z}&
 servers = ["4", "1", "2", "3"]
 width = 256
 height = 256
-max_level = 19
+max_level = 20
 img_type = "jpg"
 map_type = "sat"
 
@@ -69,7 +69,7 @@ map_type = "sat"
 name = "nasa_sat"
 comment = "https://zoom.earth/maps"
 url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-04-13/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
-max_level = 8
+max_level = 9
 width = 256
 height = 256
 img_type = "jpg"
@@ -79,7 +79,7 @@ map_type = "sat"
 name = "usgs_sat"
 comment = "https://earthexplorer.usgs.gov/"
 url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-max_level = 17
+max_level = 19
 width = 256
 height = 256
 img_type = "jpg"
