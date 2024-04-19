@@ -1,7 +1,18 @@
 user_agents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.4",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Avast/122.0.0.",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/117.0.0.0 Safari/537.3",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 OPR/108.0.0.",
 ]
-socks5_proxy_list = ["127.0.0.1:9050"]
+tor_addr_list = ["127.0.0.1:9050"]
 fetch_rate = 100
 timeout_secs = 20
 retries = 3
@@ -10,7 +21,53 @@ tile_location = "./data.tiles"
 curl_path = "./libexec/curl.exe"
 geo_search_url = "https://nominatim.openstreetmap.org/search?q={q_urlencoded}&format=geojson"
 
-[[servers]]
+[[socks5_scrape_servers]]
+url = "https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&proxy_format=ipport&format=text&anonymity=Elite&timeout=10000"
+name = "proxyscrape.com"
+extract_method = "txt"
+
+[[socks5_scrape_servers]]
+url = "https://freeproxyupdate.com/socks5-proxy"
+name = "freeproxyupdate.com"
+extract_method = "html_table"
+
+# CLOUDFLARE "javascript and cookies"
+# [[socks5_scrape_servers]]
+# url = "https://rotatingproxies.com/free/get-proxies.php?proxy_anonymity=all&proxy_protocol=socks5h&proxy_location=WW"
+# name = "rotatingproxies.com"
+# extract_method = "json"
+
+# CLOUDFLARE "javascript and cookies"
+# [[socks5_scrape_servers]]
+# url = "https://www.freeproxy.world/?type=socks5&anonymity=4&country=&speed=2000"
+# name = "freeproxy.world"
+# extract_method = "html_table"
+[[socks5_scrape_servers]]
+url = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt"
+name = "github.com.proxifly"
+extract_method = "txt"
+
+[[socks5_scrape_servers]]
+url = "https://spys.one/en/socks-proxy-list/"
+name = "spys.one"
+extract_method = "html_table"
+
+[[socks5_scrape_servers]]
+url = "https://id.gather-proxy.com/ProxyApi/ProxyAndSocks?page_num=1&type=Socks5&country=all"
+name = "gather-proxy.com"
+extract_method = "funny_json"
+
+[[socks5_scrape_servers]]
+url = "https://www.proxy-list.download/SOCKS5"
+name = "proxy-list.download"
+extract_method = "html_table"
+
+[[socks5_scrape_servers]]
+url = "http://pubproxy.com/api/proxy?format=txt&type=socks5&limit=5"
+name = "pubproxy.com"
+extract_method = "txt"
+
+[[tile_servers]]
 name = "osm_tiles"
 comment = "https://openstreetmap.org"
 url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -20,7 +77,7 @@ max_level = 19
 img_type = "png"
 map_type = "tiles"
 
-[[servers]]
+[[tile_servers]]
 name = "osm_tiles2"
 comment = "https://openstreetmap.org"
 url = "https://tile.tracestrack.com/topo__/{z}/{x}/{y}.png"
@@ -30,43 +87,44 @@ max_level = 12
 img_type = "png"
 map_type = "tiles"
 
-[[servers]]
-name = "yandex_tiles"
-comment = "https://yandex.com/maps"
-url = "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction&ads=enabled"
-width = 512
-height = 512
-max_level = 21
-img_type = "png"
-map_type = "tiles"
 
-[[servers]]
+[[tile_servers]]
 name = "google_sat"
 comment = "https://google.com/maps"
 url = "https://khms{s}.google.com/kh/v=969?x={x}&y={y}&z={z}"
 servers = ["0", "1", "2", "3"]
 width = 256
 height = 256
-max_level = 23
+max_level = 21
 img_type = "jpg"
 map_type = "sat"
 
-[[servers]]
-name = "yandex_sat"
-comment = "https://yandex.com/maps"
-url = "https://sat0{s}.maps.yandex.net/tiles?l=sat&v=3.1168.0&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps"
-servers = ["4", "1", "2", "3"]
+[[tile_servers]]
+name = "google_tiles"
+comment = "https://google.com/maps"
+url = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
 width = 256
 height = 256
-max_level = 20
+max_level = 21
+img_type = "png"
+map_type = "tiles"
+
+
+[[tile_servers]]
+name = "google_hybrid"
+comment = "https://google.com/maps"
+url = "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+width = 256
+height = 256
+max_level = 21
 img_type = "jpg"
-map_type = "sat"
+map_type = "hybrid"
 
 # [yandex.overlay]
 # url = https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&v=24.04.13-1-b240404173730&x=10&y=6&z=4&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction
 
-[[servers]]
-name = "nasa_sat"
+[[tile_servers]]
+name = "nasa_max9_2024_04_13_sat"
 comment = "https://zoom.earth/maps"
 url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-04-13/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
 max_level = 9
@@ -75,12 +133,121 @@ height = 256
 img_type = "jpg"
 map_type = "sat"
 
-[[servers]]
-name = "usgs_sat"
-comment = "https://earthexplorer.usgs.gov/"
-url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-max_level = 19
+[[tile_servers]]
+name = "nasa_max9_2024_04_10_sat"
+comment = "https://zoom.earth/maps"
+url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-04-10/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
+max_level = 9
 width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+
+[[tile_servers]]
+name = "nasa_max9_2024_04_01_sat"
+comment = "https://zoom.earth/maps"
+url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-04-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
+max_level = 9
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[tile_servers]]
+name = "nasa_max9_2024_03_01_sat"
+comment = "https://zoom.earth/maps"
+url = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/all/MODIS_Aqua_CorrectedReflectance_TrueColor/default/2024-03-01/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg"
+max_level = 9
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[tile_servers]]
+name = "arcgis_sat"
+comment = "https://earthexplorer.usgs.gov/"
+url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+max_level = 18
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[tile_servers]]
+name = "arcgis_hillshade"
+comment = "https://www.arcgis.com/home/webmap/viewer.html"
+url = "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+max_level = 16
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "hillshade"
+
+[[tile_servers]]
+url = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{bing_quadkey}.jpeg?g=14388&n=z&prx=1"
+comment = "https://www.bing.com/maps/"
+name = "bing_sat"
+max_level = 20
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[tile_servers]]
+name = "bing_tiles"
+comment = "https://www.bing.com/maps/"
+url = "https://t.ssl.ak.dynamic.tiles.virtualearth.net/comp/ch/{bing_quadkey}?mkt=en-US&it=G,LC,BF,RL&shading=hill&jp=0&n=t&og=2457&cstl=s23&o=jpg&ur=de"
+max_level = 15 # above this, they respond with PNG. They don't have overlay either
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "tiles"
+
+
+[[tile_servers]]
+name = "opentopomap_tiles"
+comment = "opentopomap.org"
+url = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+servers = ["a", "b", "c"]
+width = 256
+height = 256
+img_type = "png"
+map_type = "tiles"
+max_level = 17
+
+[[tile_servers]]
+name = "yandex_tiles"
+comment = "https://yandex.com/maps"
+url = "https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction&ads=enabled&projection=web_mercator"
+width = 512
+height = 512
+max_level = 21
+img_type = "png"
+map_type = "tiles"
+
+
+[[tile_servers]]
+name = "yandex_badsat"
+comment = "https://yandex.com/maps"
+url = "https://sat0{s}.maps.yandex.net/tiles?l=sat&v=3.1168.0&x={x}&y={y}&z={z}&scale=2&lang=en_US&client_id=yandex-web-maps"
+servers = ["4", "1", "2", "3"]
+width = 256
+height = 256
+max_level = 20
+img_type = "jpg"
+map_type = "wgs84_sat"  # compared to tiler above, does not need &projection=web_mercator
+
+
+# https://en.wikipedia.org/wiki/Restrictions_on_geographic_data_in_China
+# https://www.wikidata.org/wiki/Q29043632
+# [[tile_servers]]
+# name = "baidu_tiles"
+# comment = "https://map.baidu.com/"
+# url = "https://maponline{s}.bdimg.com/tile/?qt=vtile&x={x}&y={y}&z={z}&styles=pl&udt=20240416&scaler=2&showtext=1"
+# #      https://maponline3.bdimg.com/tile/?qt=vtile&x=1584&y=587&z=13&styles=pl&udt=20240416&scaler=2&showtext=1
+# servers = ["0", "1", "2", "3"]
+# width = 512
+# height = 512
+# max_level = 24
+# img_type = "png"
+# map_type = "tiles"

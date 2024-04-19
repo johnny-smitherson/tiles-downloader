@@ -1,6 +1,7 @@
 pub(crate) mod config;
-pub(crate) mod download;
+pub(crate) mod download_tile;
 pub(crate) mod geo_trig;
+pub(crate) mod proxy_manager;
 pub(crate) mod rocket_anyhow;
 
 #[macro_use]
@@ -16,7 +17,6 @@ use rocket::form::Form;
 use rocket::fs::NamedFile;
 
 use config::{ImageFetchDescriptor, DB_TILE_SERVER_CONFIGS, LINKS_CONFIG};
-
 use rocket_dyn_templates::context;
 use rocket_dyn_templates::Template;
 
@@ -26,6 +26,19 @@ fn index() -> rocket_anyhow::Result<Template> {
         "index",
         context! {
             tile_servers: config::get_all_tile_servers()?,
+        },
+    ))
+}
+
+#[get("/proxy")]
+async fn proxy_info() -> rocket_anyhow::Result<Template> {
+    Ok(Template::render(
+        "proxy",
+        context! {
+            scrapers: config::get_all_socks5_scrapers()?,
+            all_working_proxies: crate::proxy_manager::get_all_working_proxies(),
+            all_broken_proxies: crate::proxy_manager::get_all_broken_proxies(),
+            stat_counters: config::stat_counter_get_all(),
         },
     ))
 }
@@ -42,7 +55,8 @@ async fn favicon() -> Option<NamedFile> {
 
 #[get("/api/geo/<q_location>/json")]
 async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
-    let geojson_path = crate::download::search_geojson_to_disk(q_location).await?;
+    let geojson_path =
+        crate::download_tile::search_geojson_to_disk(q_location).await?;
 
     Ok(NamedFile::open(&geojson_path)
         .await
@@ -51,7 +65,7 @@ async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
 
 #[get("/geo/<q_location>")]
 async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
-    let geo_collection = download::search_geojson(q_location).await?;
+    let geo_collection = download_tile::search_geojson(q_location).await?;
     if geo_collection.features.is_empty() {
         return Err(anyhow!(
             "no features found after searching for '{}'",
@@ -154,15 +168,20 @@ async fn get_tile(
     extension: &str,
 ) -> rocket_anyhow::Result<Option<NamedFile>> {
     let extension = extension.to_owned();
-    let extension = if extension.contains(".") {extension.split(".").last().context("??")?} else {extension.as_str()};
+    let extension = if extension.contains(".") {
+        extension.split(".").last().context("??")?
+    } else {
+        extension.as_str()
+    };
     if !extension.eq("png") && !extension.eq("jpg") {
-        return Ok(None)
+        return Ok(None);
     }
-    let path = crate::download::get_tile(server_name, x, y, z, extension).await?;
+    let path =
+        crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
 
-    Ok(Some(NamedFile::open(&path)
-        .await
-        .with_context(|| format!("file missing from disk: {:?}", &path))?))
+    Ok(Some(NamedFile::open(&path).await.with_context(|| {
+        format!("file missing from disk: {:?}", &path)
+    })?))
 }
 
 #[derive(FromForm, UriDisplayQuery)]
@@ -189,6 +208,7 @@ use rocket::http::Status;
 use rocket::response::Responder;
 use rocket::Response;
 use std::f64::consts::PI;
+use std::future::IntoFuture;
 use std::io::Cursor;
 use tokio::task::spawn_blocking;
 
@@ -219,10 +239,15 @@ async fn get_tile_with_overlay(
     extension: &str,
     overlay_coordinates: OverlayDrawCoordinates,
 ) -> rocket_anyhow::Result<ImageResponse> {
-    let path = crate::download::get_tile(server_name, x, y, z, extension).await?;
+    let path =
+        crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
     let server_config = config::get_tile_server(server_name)?;
-    let (img_type, img) =
-        download::validate_fetched_tile(&path, &server_config).await?;
+    let _server_config_for_clz = server_config.clone();
+    let (img_type, img) = tokio::task::spawn_blocking(move || {
+        download_tile::validate_fetched_tile(&path, &_server_config_for_clz)
+    })
+    .await??;
+
     assert!(img_type.eq(extension));
     let content_type =
         ContentType::from_extension(extension).context("bad extension?")?;
@@ -304,6 +329,9 @@ fn pixel_max_contrast(px: &image::Rgb<u8>) -> image::Rgb<u8> {
 async fn main() -> rocket_anyhow::Result<()> {
     init_database().await?;
 
+    // check we can run the manager once
+    let _proxy_manager = tokio::spawn(proxy_manager::proxy_manager_loop());
+
     let _rocket = rocket::build()
         .mount(
             "/",
@@ -315,11 +343,14 @@ async fn main() -> rocket_anyhow::Result<()> {
                 get_tile_with_overlay,
                 geo_search_json,
                 geo_index,
+                proxy_info,
             ],
         )
         .attach(Template::fairing())
         .launch()
         .await?;
+
+    _proxy_manager.abort();
 
     Ok(())
 }

@@ -22,6 +22,24 @@ pub fn tile_index_float(zoom: u8, lon_deg: f64, lat_deg: f64) -> (f64, f64) {
     (tile_x, tile_y)
 }
 
+// https://stackoverflow.com/questions/32454234/using-bing-maps-quadkeys-as-openlayers-3-tile-source
+pub fn xyz_to_bing_quadkey(x: u64, y: u64, z: u8) -> String {
+    // let y = -(y as i64) - 1;
+    let mut quad_key = vec![];
+    for i in (1..=z).rev() {
+        let mut digit = 0;
+        let mask = 1 << (i - 1);
+        if (x & mask) != 0 {
+            digit += 1
+        }
+        if (y & mask) != 0 {
+            digit += 2
+        }
+        quad_key.push(digit.to_string().chars().next().unwrap());
+    }
+    quad_key.iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
