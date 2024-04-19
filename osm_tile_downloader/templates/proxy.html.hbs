@@ -2,10 +2,15 @@
 {{#each scrapers}}
 
 
-  <h1>{{this.name}}</h1>
-  <p>  {{this.url}}</p> 
-  <p>  {{this.extract_method}}</p> 
+  <h1>{{this.0.name}}</h1>
+  <p>  {{this.0.url}}</p> 
+  <p>  {{this.0.extract_method}}</p> 
 
+  {{#each this.1}}
+    <p>
+      {{this.0}}: {{this.1}}
+    </p>
+  {{/each}}
 
 {{/each}}
 
@@ -17,11 +22,16 @@
       <td> CATEGORY </td>
       <td> ADDR </td>
       <td> CHECKED </td>
-      <td> LAST CHECK </td>
       <td> LAST LAG </td>
-      <td> LAST SCRAPED </td>
       <td> ACCEPTED </td>
       <td> LAST REMOTE IP </td>
+
+      <td> failed_checks </td>
+      <td> last_success_count </td>
+      <td> last_err_count </td>
+      <td> created_at </td>
+      <td> LAST CHECK </td>
+      <td> LAST SCRAPED </td>
     </thead>
   <tbody>
     {{#each all_working_proxies}}
@@ -29,11 +39,16 @@
         <td>       {{this.category}}    </td>
         <td>       {{this.addr}}    </td>
         <td>       {{this.checked}}    </td>
-        <td>       {{this.last_check}}    </td>
         <td>       {{this.last_lag}}    </td>
-        <td>       {{this.last_scraped}}    </td>
         <td>       {{this.accepted}}    </td>
         <td>       {{this.last_remote_ip}}    </td>
+
+        <td>       {{this.failed_checks}}    </td>
+        <td>       {{this.last_success_count}}    </td>
+        <td>       {{this.last_err_count}}    </td>
+        <td>       {{this.created_at}}    </td>
+        <td>       {{this.last_check}}    </td>
+        <td>       {{this.last_scraped}}    </td>
         
       </tr>
     {{/each}}
@@ -49,12 +64,17 @@
       <td> CATEGORY </td>
       <td> ADDR </td>
       <td> CHECKED </td>
-      <td> LAST CHECK </td>
       <td> LAST LAG </td>
-      <td> LAST SCRAPED </td>
       <td> ACCEPTED </td>
       <td> LAST REMOTE IP </td>
       <td> LAST_CHECK_ERROR </td>
+
+      <td> failed_checks </td>
+      <td> last_success_count </td>
+      <td> last_err_count </td>
+      <td> created_at </td>
+      <td> LAST CHECK </td>
+      <td> LAST SCRAPED </td>
     </thead>
   <tbody>
     {{#each all_broken_proxies}}
@@ -62,12 +82,19 @@
         <td>       {{this.category}}    </td>
         <td>       {{this.addr}}    </td>
         <td>       {{this.checked}}    </td>
-        <td>       {{this.last_check}}    </td>
         <td>       {{this.last_lag}}    </td>
-        <td>       {{this.last_scraped}}    </td>
         <td>       {{this.accepted}}    </td>
         <td>       {{this.last_remote_ip}}    </td>
         <td>       {{this.last_check_error}}    </td>
+
+
+        <td>       {{this.failed_checks}}    </td>
+        <td>       {{this.last_success_count}}    </td>
+        <td>       {{this.last_err_count}}    </td>
+        <td>       {{this.created_at}}    </td>
+        <td>       {{this.last_check}}    </td>
+        <td>       {{this.last_scraped}}    </td>
+
       </tr>
     {{/each}}
   </tbody>
@@ -78,18 +105,20 @@
   <h1> STATISTICS COUNTERS</h1>
   <table>
     <thead>
-      <td> db_key </td>
+      <td> type </td>
       <td> item_a </td>
       <td> item_b </td>
+      <td> event </td>
       <td> counter </td>
     </thead>
   <tbody>
     {{#each stat_counters}}
       <tr>
-        <td>       {{this.0}}    </td>
+        <td>       {{this.0.stat_type}}    </td>
+        <td>       {{this.0.item_a}}    </td>
+        <td>       {{this.0.item_b}}    </td>
         <td>       {{this.1}}    </td>
         <td>       {{this.2}}    </td>
-        <td>       {{this.3}}    </td>
       </tr>
     {{/each}}
   </tbody>

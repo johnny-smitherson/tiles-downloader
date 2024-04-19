@@ -1,3 +1,4 @@
+use std::collections::hash_map;
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -20,50 +21,31 @@ lazy_static::lazy_static! {
         = typed_sled::Tree::<String, Socks5ProxyScraperConfig>::open(&SLED_DB, "socks5_scraper_configs");
 
     pub static ref DB_STAT_COUNTER:
-        typed_sled::Tree::<String, StatCounter>
-         = typed_sled::Tree::<String, StatCounter>::open(&SLED_DB, "stat_counter");
+        typed_sled::Tree::<StatCounterKey, StatCounterVal>
+         = typed_sled::Tree::<StatCounterKey, StatCounterVal>::open(&SLED_DB, "stat_counter_2");
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct StatCounterKey {
-    _item_a: String,
-    _item_b: String,
+    pub stat_type: String,
+    pub item_a: String,
+    pub item_b: String,
 }
 use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct StatCounter {
-    kv: HashMap<StatCounterKey, u64>,
-    edit_at: HashMap<StatCounterKey, f64>,
+pub struct StatCounterVal {
+    event_count: HashMap<String, u64>,
+    edit_at: f64
 }
 
 const STAT_COUNTER_ENTRY_TTL: f64 = 3600.0;
 
-impl StatCounter {
-    fn increment(&mut self, hash_key: &StatCounterKey) {
-        self.kv
-            .insert(hash_key.clone(), self.kv.get(&hash_key).unwrap_or(&0) + 1);
-        self.edit_at
-            .insert(hash_key.clone(), get_current_timestamp());
-
-        let mut keys_to_delete = vec![];
-        let delete_before = get_current_timestamp() - STAT_COUNTER_ENTRY_TTL;
-        for (k, v) in self.edit_at.iter() {
-            if *v < delete_before {
-                keys_to_delete.push(k.clone());
-            }
-        }
-        for k in keys_to_delete {
-            self.kv.remove(&k);
-            self.edit_at.remove(&k);
-        }
+impl StatCounterVal {
+    fn increment(&mut self, event: &String) {
+        self.event_count
+            .insert(event.clone(), self.event_count.get(&event.clone()).unwrap_or(&0) + 1);
+        self.edit_at = get_current_timestamp();
     }
-}
-
-pub fn get_current_timestamp() -> f64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs_f64()
 }
 
 pub fn stat_counter_increment(
@@ -73,40 +55,66 @@ pub fn stat_counter_increment(
     stat_item_b: &str,
 ) -> anyhow::Result<()> {
     let hash_key = StatCounterKey {
-        _item_a: stat_item_a.to_owned(),
-        _item_b: stat_item_b.to_owned(),
+        stat_type: stat_type.to_owned(),
+        item_a: stat_item_a.to_owned(),
+        item_b: stat_item_b.to_owned(),
     };
-    let db_key = format!("{}-{}", stat_type, stat_event);
 
-    DB_STAT_COUNTER.update_and_fetch(&db_key, |v| match v {
+    DB_STAT_COUNTER.update_and_fetch(&hash_key.to_owned(), |v| match v {
         Some(mut stat_counter) => {
-            stat_counter.increment(&hash_key);    
+            stat_counter.increment(&stat_event.to_owned());    
             Some(stat_counter)
         },
         None => {
-            let mut stat_counter = StatCounter {
-                kv: HashMap::new(),
-                edit_at: HashMap::new(),
+            let mut stat_counter = StatCounterVal {
+                event_count: HashMap::new(),
+                edit_at: get_current_timestamp(),
             };
-            stat_counter.increment(&hash_key);
+            stat_counter.increment( &stat_event.to_owned());
             Some(stat_counter)
         }
     })?;
     Ok(())
 }
 
-pub fn stat_counter_get_all() -> Vec<(String, String, String, u64)> {
+pub fn stat_counter_get_all() -> Vec<(StatCounterKey, String, u64)> {
     let mut _vec = vec![];
+    let mut _keys_to_delete = vec![];
 
     DB_STAT_COUNTER.iter().for_each(|x| {
-        if let Ok((db_key, v)) = x {
-            for (hash_key, value) in v.kv.iter() {
-                _vec.push((db_key.clone(), hash_key._item_a.to_owned(), hash_key._item_b.to_owned(), *value));
+        if let Ok((hash_key, v)) = x {
+            if v.edit_at + STAT_COUNTER_ENTRY_TTL < get_current_timestamp() {
+                _keys_to_delete.push(hash_key.clone());
+                return;
+            }
+            for (event, counter) in v.event_count.iter() {
+                _vec.push((
+                    hash_key.clone(),
+                    event.clone(), 
+                    *counter));
             }
         }
     });
     _vec.sort();
     _vec
+}
+
+pub fn stat_count_events_for_items(items: &Vec<&str>) -> HashMap<String, HashMap<String, u64>> {
+    let mut _map = HashMap::<String,HashMap<String, u64>>::new();
+    for item in items.iter() {
+        _map.insert(item.to_string(), HashMap::<String, u64>::new());
+    }
+
+    for (key, event, count) in stat_counter_get_all() {
+        for item in items {
+            if key.item_a.eq(item) || key.item_b.eq(item) {
+                let mut _sub_map  = _map.get_mut(*item).unwrap();
+                let old_count = _sub_map.get(&event.clone()).unwrap_or(&0);
+                _sub_map.insert(event.clone(), count + old_count);
+            }
+        }
+    }
+    _map
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -115,7 +123,7 @@ pub struct LinksConfig {
     pub tile_location: PathBuf,
     pub user_agents: Vec<String>,
     pub tor_addr_list: Vec<String>,
-    pub fetch_rate: u8,
+    pub proxy_fetch_parallel: u8,
     pub timeout_secs: u64,
     pub retries: u8,
     pub curl_path: PathBuf,
@@ -209,13 +217,19 @@ pub async fn init_database() -> anyhow::Result<()> {
     }
 
     for db_tree_name in (*SLED_DB).tree_names().iter() {
+        let mut total_size = 0;
         let tree = (*SLED_DB)
             .open_tree(db_tree_name)
             .context("cannot open db tree: ")?;
+        for k in tree.iter() {
+            let (key, val) = k?;
+            total_size += key.len() + val.len();
+        }
         eprintln!(
-            "found db tree {:?}: len = {}",
+            "found db tree {:?}: len = {} ; size = {} KB",
             String::from_utf8_lossy(db_tree_name),
-            tree.len()
+            tree.len(),
+            total_size/1024,
         )
     }
     Ok(())
@@ -349,4 +363,12 @@ pub async fn tempfile() -> anyhow::Result<async_tempfile::TempFile> {
     tokio::fs::create_dir_all(&tmp_parent).await?;
     let temp_file = async_tempfile::TempFile::new_in(tmp_parent).await?;
     Ok(temp_file)
+}
+
+
+pub fn get_current_timestamp() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs_f64()
 }

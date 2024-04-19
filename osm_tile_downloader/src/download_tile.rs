@@ -18,10 +18,10 @@ use crate::config::{
 };
 use crate::proxy_manager;
 
-pub fn validate_fetched_tile(
+fn validate_fetched_tile(
     img_path: &PathBuf,
     server_config: &TileServerConfig,
-) -> Result<(String, DynamicImage)> {
+) -> Result<DynamicImage> {
     let img_path = img_path.clone();
     let server_config = server_config.clone();
     // let bytes = tokio::fs::read(img_path).await?;
@@ -53,23 +53,22 @@ pub fn validate_fetched_tile(
             img.height()
         );
     }
-    Ok((server_config.img_type.clone(), img))
+    Ok(img)
 }
 
 async fn download_tile(
     server_config: &TileServerConfig,
     fetch_descriptor: &ImageFetchDescriptor,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf,  DynamicImage)> {
     let final_file = fetch_descriptor.get_disk_path(&server_config).await?;
     let url = &fetch_descriptor.get_some_url(server_config)?;
 
     let _server_config_2 = server_config.clone();
-    proxy_manager::download(url, &final_file, move |path| {
-        validate_fetched_tile(path, &_server_config_2.clone())?;
-        Ok(())
+    let img = proxy_manager::download(url, &final_file, move |path| {
+        Ok(validate_fetched_tile(path, &_server_config_2.clone())?)
     })
     .await?;
-    Ok(final_file)
+    Ok((final_file, img))
 }
 
 pub async fn get_tile(
@@ -78,7 +77,7 @@ pub async fn get_tile(
     y: u64,
     z: u8,
     extension: &str,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf, DynamicImage)> {
     let server_config = config::get_tile_server(server_name)?;
 
     let fetch_info = ImageFetchDescriptor {
@@ -89,16 +88,11 @@ pub async fn get_tile(
         extension: extension.to_owned(),
     };
     fetch_info.validate(&server_config)?;
-
     let path = fetch_info.get_disk_path(&server_config).await?;
+    
+    let img = download_tile(&server_config, &fetch_info).await?;
 
-    if (!path.exists())
-        || crate::download_tile::validate_fetched_tile(&path, &server_config)
-            .is_err()
-    {
-        download_tile(&server_config, &fetch_info).await?;
-    }
-    Ok(path)
+    Ok((path, img.1))
 }
 
 pub fn is_json(path: &Path) -> Result<()> {

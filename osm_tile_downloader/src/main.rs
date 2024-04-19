@@ -32,10 +32,14 @@ fn index() -> rocket_anyhow::Result<Template> {
 
 #[get("/proxy")]
 async fn proxy_info() -> rocket_anyhow::Result<Template> {
+    let scrapers = config::get_all_socks5_scrapers()?;
+    let scraper_events = config::stat_count_events_for_items(&scrapers.iter().map(|e| e.name.as_str()).collect());
+    let scrapers: Vec<(_, Vec<_>)> = scrapers.iter().map(|s| (s, scraper_events.get(&s.name).unwrap().iter().collect())).collect();
+
     Ok(Template::render(
         "proxy",
         context! {
-            scrapers: config::get_all_socks5_scrapers()?,
+            scrapers: scrapers,
             all_working_proxies: crate::proxy_manager::get_all_working_proxies(),
             all_broken_proxies: crate::proxy_manager::get_all_broken_proxies(),
             stat_counters: config::stat_counter_get_all(),
@@ -176,7 +180,7 @@ async fn get_tile(
     if !extension.eq("png") && !extension.eq("jpg") {
         return Ok(None);
     }
-    let path =
+    let (path, _) =
         crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
 
     Ok(Some(NamedFile::open(&path).await.with_context(|| {
@@ -239,14 +243,11 @@ async fn get_tile_with_overlay(
     extension: &str,
     overlay_coordinates: OverlayDrawCoordinates,
 ) -> rocket_anyhow::Result<ImageResponse> {
-    let path =
+    let (_path, img) =
         crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
     let server_config = config::get_tile_server(server_name)?;
     let _server_config_for_clz = server_config.clone();
-    let (img_type, img) = tokio::task::spawn_blocking(move || {
-        download_tile::validate_fetched_tile(&path, &_server_config_for_clz)
-    })
-    .await??;
+    let img_type = server_config.img_type.clone();
 
     assert!(img_type.eq(extension));
     let content_type =
