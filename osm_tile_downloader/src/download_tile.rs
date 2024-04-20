@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futures::FutureExt;
 use image::DynamicImage;
 use std::collections::HashMap;
 use std::path::Path;
@@ -7,14 +6,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use image::io::Reader as ImageReader;
-use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use geojson::FeatureCollection;
 
 use crate::config;
 use crate::config::{
-    ImageFetchDescriptor, TileServerConfig, DB_TILE_SERVER_CONFIGS, LINKS_CONFIG,
+    ImageFetchDescriptor, TileServerConfig, LINKS_CONFIG,
 };
 use crate::proxy_manager;
 

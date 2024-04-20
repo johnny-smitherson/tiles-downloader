@@ -12,13 +12,9 @@ use anyhow::anyhow;
 use anyhow::Context;
 use config::init_database;
 use config::TileServerConfig;
-use fetch::fetch;
-use geojson::Bbox;
-use image::DynamicImage;
-use rocket::form::Form;
 use rocket::fs::NamedFile;
 
-use config::{ImageFetchDescriptor, DB_TILE_SERVER_CONFIGS, LINKS_CONFIG};
+use config::{LINKS_CONFIG};
 use rocket_dyn_templates::context;
 use rocket_dyn_templates::Template;
 
@@ -212,11 +208,8 @@ struct OverlayDrawCoordinates {
     bbox: Option<OverlayDrawBox>,
 }
 use rocket::http::ContentType;
-use rocket::http::Status;
 use rocket::response::Responder;
 use rocket::Response;
-use std::f64::consts::PI;
-use std::future::IntoFuture;
 use std::io::Cursor;
 use tokio::task::spawn_blocking;
 

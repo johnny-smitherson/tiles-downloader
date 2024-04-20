@@ -1,6 +1,5 @@
-use std::clone;
 use std::time::Duration;
-use std::{path::Path, sync::Arc};
+use std::{path::Path};
 
 use crate::config::{self, *};
 use anyhow::Context;

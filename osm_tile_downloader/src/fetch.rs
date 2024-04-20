@@ -1,9 +1,7 @@
-use std::clone;
 use std::path::PathBuf;
-use std::time::Duration;
-use std::{path::Path, sync::Arc};
+use std::{path::Path};
 
-use crate::config::{self, *};
+use crate::config::{*};
 use anyhow::Context;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
