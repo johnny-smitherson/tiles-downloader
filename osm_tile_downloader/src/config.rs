@@ -162,9 +162,9 @@ pub fn load_config() -> anyhow::Result<LinksConfig> {
     let config: LinksConfig = toml::from_str(buf.as_str())?;
 
     // CHECK LISTS ARE OK
-    assert!(config.tile_servers.len() > 0);
-    assert!(config.user_agents.len() > 0);
-    assert!(config.tor_addr_list.len() > 0);
+    assert!(!config.tile_servers.is_empty());
+    assert!(!config.user_agents.is_empty());
+    assert!(!config.tor_addr_list.is_empty());
 
     // CHECK UNIQUE ELEMENTS IN TILE SERVER LIST
     fn has_unique_elements<T>(iter: T) -> bool
@@ -326,8 +326,8 @@ impl ImageFetchDescriptor {
             crate::geo_trig::xyz_to_bing_quadkey(self.x, self.y, self.z),
         );
 
-        Ok(strfmt::strfmt(&server_config.url, &map)
-            .context("failed strfmt on URL")?)
+        strfmt::strfmt(&server_config.url, &map)
+            .context("failed strfmt on URL")
     }
 }
 

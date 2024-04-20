@@ -31,8 +31,7 @@ fn validate_fetched_tile(
     let found_extension = img_format
         .extensions_str()
         .iter()
-        .find(|&&x| x.to_owned() == server_config.img_type)
-        .is_some();
+        .any(|&x| *x == server_config.img_type);
     if !found_extension {
         anyhow::bail!("did not find our expected tile server extension = {:?} \n in list of auto-detected extensions = {:?}", server_config.img_type, img_format.extensions_str());
     }
@@ -58,12 +57,12 @@ async fn download_tile(
     server_config: &TileServerConfig,
     fetch_descriptor: &ImageFetchDescriptor,
 ) -> Result<(PathBuf,  DynamicImage)> {
-    let final_file = fetch_descriptor.get_disk_path(&server_config).await?;
+    let final_file = fetch_descriptor.get_disk_path(server_config).await?;
     let url = &fetch_descriptor.get_some_url(server_config)?;
 
     let _server_config_2 = server_config.clone();
     let img = proxy_manager::download(url, &final_file, move |path| {
-        Ok(validate_fetched_tile(path, &_server_config_2.clone())?)
+        validate_fetched_tile(path, &_server_config_2.clone())
     })
     .await?;
     Ok((final_file, img))
@@ -113,7 +112,7 @@ pub async fn search_geojson_to_disk(query_str: &str) -> Result<std::path::PathBu
     };
 
     if !path.exists() || is_json(&path).is_err() {
-        crate::proxy_manager::download(&url, &path, |path| is_json(&path)).await?;
+        crate::proxy_manager::download(&url, &path, |path| is_json(path)).await?;
     }
 
     Ok(path)
@@ -127,5 +126,5 @@ pub async fn parse_geojson(path: &Path) -> Result<FeatureCollection> {
 
 pub async fn search_geojson(query_str: &str) -> Result<FeatureCollection> {
     let path = search_geojson_to_disk(query_str).await?;
-    Ok(parse_geojson(&path).await?)
+    parse_geojson(&path).await
 }

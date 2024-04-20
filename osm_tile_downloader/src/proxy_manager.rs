@@ -84,7 +84,7 @@ async fn parse_socks5_proxy_list(path: &Path) -> anyhow::Result<Vec<String>> {
         .iter()
         .map(|_c| {
             if allowed_bytes.contains(_c) {
-                _c.clone()
+                *_c
             } else {
                 replace_byte
             }
@@ -141,7 +141,7 @@ async fn refresh_single_socks5_proxy_list(
         anyhow::bail!("too soon for refresh: {}", srv.name);
     }
     DB_SCRAPER_LAST_REFRESH.insert(&srv.name, &get_current_timestamp())?;
-    let path = download_socks5_proxy_list(&srv).await?;
+    let path = download_socks5_proxy_list(srv).await?;
     let found_socks = parse_socks5_proxy_list(&path).await?;
     if found_socks.is_empty() {
         anyhow::bail!("no proxy found for {}", srv.name);
@@ -246,10 +246,8 @@ pub async fn proxy_manager_iteration() -> Result<()> {
             if let Some(x) = all_proxy_event_count.get(&v.addr) {
                 v.last_success_count = *x.get("success").unwrap_or(&0);
                 v.last_err_count = *x.get("fail").unwrap_or(&0);
-                if v.last_success_count != 0 || v.last_err_count != 0 {
-                    if DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
-                        eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
-                    }
+                if (v.last_success_count != 0 || v.last_err_count != 0) && DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
+                    eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
                 }
             }
 
@@ -282,7 +280,6 @@ pub async fn proxy_manager_iteration() -> Result<()> {
                     eprintln!("db failed to delete old socks5 item: {}", &v.addr);
                 }
                 _deleted += 1;
-                return;
             }
         })
         .await;
@@ -296,7 +293,7 @@ pub async fn proxy_manager_iteration() -> Result<()> {
     Ok(())
 }
 
-pub async fn proxy_manager_loop() -> () {
+pub async fn proxy_manager_loop() {
     loop {
         eprintln!("running proxy manager loop.");
         if proxy_manager_iteration().await.is_err() {
@@ -316,24 +313,21 @@ fn get_all_proxy_entries() -> Vec<Socks5ProxyEntry> {
 pub fn get_all_working_proxies() -> Vec<Socks5ProxyEntry> {
     get_all_proxy_entries()
         .iter()
-        .filter(|&e| e.accepted)
-        .map(|e| e.clone())
+        .filter(|&e| e.accepted).cloned()
         .collect()
 }
 
 pub fn get_all_broken_proxies() -> Vec<Socks5ProxyEntry> {
     get_all_proxy_entries()
         .iter()
-        .filter(|&e| !e.accepted)
-        .map(|e| e.clone())
+        .filter(|&e| !e.accepted).cloned()
         .collect()
 }
 
 pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
     use rand::seq::SliceRandom;
     get_all_working_proxies()
-        .choose_multiple(&mut rand::thread_rng(), count as usize)
-        .map(|e| e.clone()).collect()
+        .choose_multiple(&mut rand::thread_rng(), count as usize).cloned().collect()
 }
 
 // type ValidatorFunction<T> where T: std::marker::Send + std::marker::Sync = Arc<dyn Fn(&PathBuf)->anyhow::Result<T> + std::marker::Send + std::marker::Sync + 'static>;
@@ -378,7 +372,7 @@ where
 
     let res = spawn_blocking(move || parser(&path)).await?;
     proxy_stat_increment("parse", url.as_str(), socks_addr.as_str(), socks_cat.as_str(),res.is_ok())?;
-    return Ok((res.with_context(|| format!("validation error, proxy {} ({}): ", socks_addr, socks_cat))?, path2));
+    Ok((res.with_context(|| format!("validation error, proxy {} ({}): ", socks_addr, socks_cat))?, path2))
 }
 
 use std::path::PathBuf;
@@ -424,7 +418,7 @@ where
     for _ in 0..all_socks.len() {
         all_temps.push(crate::config::tempfile().await?);
     }
-    let all_temps: Vec<_> = all_temps.iter().map(|e| e).collect();
+    let all_temps: Vec<_> = all_temps.iter().collect();
 
     let mut parallel_tasks = FuturesUnordered::new();
 

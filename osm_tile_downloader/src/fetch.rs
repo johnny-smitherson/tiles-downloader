@@ -61,7 +61,7 @@ pub struct FetchWorkResult {
 //     }
 // }
 
-pub async fn fetch_loop() -> () {
+pub async fn fetch_loop() {
     
     eprintln!("running fetcher loop.");
     use futures::StreamExt;

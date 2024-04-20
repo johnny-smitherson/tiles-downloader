@@ -172,8 +172,8 @@ async fn get_tile(
     extension: &str,
 ) -> rocket_anyhow::Result<Option<NamedFile>> {
     let extension = extension.to_owned();
-    let extension = if extension.contains(".") {
-        extension.split(".").last().context("??")?
+    let extension = if extension.contains('.') {
+        extension.split('.').last().context("??")?
     } else {
         extension.as_str()
     };
