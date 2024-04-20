@@ -1,5 +1,5 @@
 use std::time::Duration;
-use std::{path::Path};
+use std::path::Path;
 
 use crate::config::{self, *};
 use anyhow::Context;

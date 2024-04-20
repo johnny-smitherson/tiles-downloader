@@ -10,13 +10,13 @@ extern crate rocket;
 
 use anyhow::anyhow;
 use anyhow::Context;
-use config::init_database;
-use config::TileServerConfig;
 use rocket::fs::NamedFile;
-
-use config::{LINKS_CONFIG};
 use rocket_dyn_templates::context;
 use rocket_dyn_templates::Template;
+
+use config::init_database;
+use config::TileServerConfig;
+use config::LINKS_CONFIG;
 
 #[get("/")]
 fn index() -> rocket_anyhow::Result<Template> {
