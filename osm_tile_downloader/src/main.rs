@@ -1,4 +1,5 @@
 pub(crate) mod config;
+pub(crate) mod fetch;
 pub(crate) mod download_tile;
 pub(crate) mod geo_trig;
 pub(crate) mod proxy_manager;
@@ -11,6 +12,7 @@ use anyhow::anyhow;
 use anyhow::Context;
 use config::init_database;
 use config::TileServerConfig;
+use fetch::fetch;
 use geojson::Bbox;
 use image::DynamicImage;
 use rocket::form::Form;
@@ -39,6 +41,8 @@ async fn proxy_info() -> rocket_anyhow::Result<Template> {
     Ok(Template::render(
         "proxy",
         context! {
+            fetch_queue_ready: crate::fetch::fetch_queue_ready()?,
+            fetch_queue_done: crate::fetch::fetch_queue_done()?,
             scrapers: scrapers,
             all_working_proxies: crate::proxy_manager::get_all_working_proxies(),
             all_broken_proxies: crate::proxy_manager::get_all_broken_proxies(),
@@ -331,6 +335,7 @@ async fn main() -> rocket_anyhow::Result<()> {
     init_database().await?;
 
     // check we can run the manager once
+    let _fetch_manager = tokio::spawn(fetch::fetch_loop());
     let _proxy_manager = tokio::spawn(proxy_manager::proxy_manager_loop());
 
     let _rocket = rocket::build()
@@ -351,7 +356,10 @@ async fn main() -> rocket_anyhow::Result<()> {
         .launch()
         .await?;
 
+    eprintln!("aborting worker loops...");
     _proxy_manager.abort();
+    _fetch_manager.abort();
+    eprintln!("clean exit done.");
 
     Ok(())
 }

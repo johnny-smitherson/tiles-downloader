@@ -46,47 +46,6 @@ impl Socks5ProxyEntry {
     }
 }
 
-pub async fn download_once_with_proxy(
-    url: &str,
-    path: &Path,
-    socks5_proxy: &str,
-) -> Result<()> {
-    use rand::seq::SliceRandom;
-    let user_agent = LINKS_CONFIG
-        .user_agents
-        .choose(&mut rand::thread_rng())
-        .context("no user-agent")?;
-
-    let mut curl_cmd = tokio::process::Command::new(LINKS_CONFIG.curl_path.clone());
-    curl_cmd
-        .arg("-s")
-        // .arg("-L")
-        // KV ARGS
-        .arg("-o")
-        .arg(path)
-        .arg("--user-agent")
-        .arg(user_agent)
-        .arg("--socks5-hostname")
-        .arg(socks5_proxy)
-        .arg("--connect-timeout")
-        .arg(LINKS_CONFIG.timeout_secs.to_string())
-        .arg("--max-time")
-        .arg((LINKS_CONFIG.timeout_secs * 2).to_string())
-        // URL
-        .arg(url);
-    // eprintln!("running curl proxy = {}; url = {}", socks5_proxy, url);
-    let mut curl = curl_cmd.spawn()?;
-    let curl_status = curl.wait().await?;
-    if curl_status.success() {
-        Ok(())
-    } else {
-        anyhow::bail!(
-            "curl fail to get file using socks proxy = {:?}  url = {:?}",
-            socks5_proxy,
-            url
-        )
-    }
-}
 
 async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
     use rand::seq::SliceRandom;
@@ -94,7 +53,7 @@ async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
         .tor_addr_list
         .choose(&mut rand::thread_rng())
         .context("no socks proxy")?;
-    download_once_with_proxy(url, path, socks5_proxy).await
+    crate::fetch::fetch(url, path, socks5_proxy).await
 }
 
 async fn download_socks5_proxy_list(
@@ -108,11 +67,8 @@ async fn download_socks5_proxy_list(
         proxy_scraper.name, proxy_scraper.extract_method
     ));
 
-    // if !path.exists() {
     download_once_tor(&proxy_scraper.url, temp_file.file_path()).await?;
-    // validate_geojson(&path).await?;
     tokio::fs::rename(temp_file.file_path(), &path).await?;
-    // }
 
     Ok(path)
 }
@@ -244,7 +200,7 @@ async fn refresh_all_socks5_proxy_lists() -> anyhow::Result<()> {
 
 async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()> {
     let temp_file = tempfile().await?;
-    download_once_with_proxy(
+    crate::fetch::fetch(
         "http://icanhazip.com/",
         temp_file.file_path(),
         &proxy.addr,
@@ -298,13 +254,6 @@ pub async fn proxy_manager_iteration() -> Result<()> {
                 }
             }
 
-            if v.needs_delete() {
-                if DB_SOCKS5_PROXY_ENTRY.remove(&v.addr).is_err() {
-                    eprintln!("db failed to delete old socks5 item: {}", &v.addr);
-                }
-                _deleted += 1;
-                return;
-            }
             if !v.needs_recheck() {
                 return;
             }
@@ -328,6 +277,14 @@ pub async fn proxy_manager_iteration() -> Result<()> {
             if DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
                 eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
             }
+            // do the delete last, to keep some older entries after reboot
+            if v.needs_delete() {
+                if DB_SOCKS5_PROXY_ENTRY.remove(&v.addr).is_err() {
+                    eprintln!("db failed to delete old socks5 item: {}", &v.addr);
+                }
+                _deleted += 1;
+                return;
+            }
         })
         .await;
     eprintln!(
@@ -342,10 +299,11 @@ pub async fn proxy_manager_iteration() -> Result<()> {
 
 pub async fn proxy_manager_loop() -> () {
     loop {
+        eprintln!("running proxy manager loop.");
         if proxy_manager_iteration().await.is_err() {
             eprintln!("proxy manager loop iteration failed!");
         }
-        tokio::time::sleep(Duration::from_secs_f64(SCRAPER_REFRESH_SECONDS)).await;
+        tokio::time::sleep(Duration::from_secs_f64(SCRAPER_REFRESH_SECONDS/2.0)).await;
     }
 }
 
@@ -415,7 +373,7 @@ pub async fn download_once<T>(
 where
     T: std::marker::Send + 'static,
 {   let path2 = path.clone();
-    let res = download_once_with_proxy(url.as_str(), &path, &socks_addr).await;
+    let res = crate::fetch::fetch(url.as_str(), &path, &socks_addr).await;
     proxy_stat_increment("download", url.as_str(), socks_addr.as_str(), socks_cat.as_str(), res.is_ok())?;
     res.with_context(|| format!("download error, proxy {} ({}): ", socks_addr, socks_cat))?;
 
@@ -441,7 +399,8 @@ where
     use futures::stream::{FuturesUnordered, StreamExt};
 
     // if path exists, check it, if failed delete it.
-    if path.exists() {
+    // path.exists() is sync, so do stat instead
+    if tokio::fs::metadata(path).await.is_ok() {
         let parser2 = parser.clone();
         let path = path.clone();
         let path2 = path.clone();

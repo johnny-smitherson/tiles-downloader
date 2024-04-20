@@ -1,18 +1,63 @@
+<div>
+  <h1>READY FETCH QUEUE ({{len fetch_queue_ready}})</h1>
+  <table>
+    <thead>
+      <td> URL </td>
+      <td> PATH </td>
+      <td> SOCKS5 </td>
+      <td> ADDED </td>
+    </thead>
+    <tbody>
+    {{#each fetch_queue_ready}}
+      <tr>
+        <td> {{this.0.url}}  </td>
+        <td> {{this.0.path}} </td>
+        <td> {{this.0.socks5_proxy}}  </td>
+        <td> {{this.1}}  </td>
+      </tr> 
+    {{/each}} 
+    </tbody>
+  </table>
+       
+  <h1>DONE FETCH QUEUE ({{len fetch_queue_done}})</h1>
+    <table>
+    <thead>
+      <td> SUCCESS </td>
+      <td> ERR TXT </td>
+      <td> URL </td>
+      <td> PATH </td>
+      <td> SOCKS5 </td>
+    </thead>
+    <tbody>
+    {{#each fetch_queue_done}}
+      <tr>
+        <td> {{this.1.is_ok}}  </td>
+        <td> {{this.1.err_txt}}  </td>
+        <td> {{this.0.url}}  </td>
+        <td> {{this.0.path}} </td>
+        <td> {{this.0.socks5_proxy}}  </td>
+      </tr> 
+    {{/each}} 
+    </tbody>
+  </table>
+</div>
 
-{{#each scrapers}}
 
+<div>
+  <h1> ALL PROXY SCRAPER SOURCES </h1>
+  {{#each scrapers}}
+    <h1>{{this.0.name}}</h1>
+    <p>  {{this.0.url}}</p> 
+    <p>  {{this.0.extract_method}}</p> 
 
-  <h1>{{this.0.name}}</h1>
-  <p>  {{this.0.url}}</p> 
-  <p>  {{this.0.extract_method}}</p> 
+    {{#each this.1}}
+      <p>
+        {{this.0}}: {{this.1}}
+      </p>
+    {{/each}}
 
-  {{#each this.1}}
-    <p>
-      {{this.0}}: {{this.1}}
-    </p>
   {{/each}}
-
-{{/each}}
+</div>
 
 <div>
   <h1>ALL WORKING PROXIES</h1>
@@ -102,7 +147,7 @@
 </div>
 
 <div>
-  <h1> STATISTICS COUNTERS</h1>
+  <h1> ALL STATISTICS COUNTERS</h1>
   <table>
     <thead>
       <td> type </td>

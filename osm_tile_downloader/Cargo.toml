@@ -35,6 +35,8 @@ geojson = "0.24.1"
 regex = "1.10.4"
 url = "2.5.0"
 
+# for duckdb
+duckdb = {version="0.10.1", features = ["bundled", "httpfs", "json", "parquet"] }
 
 
 [profile.dev]
