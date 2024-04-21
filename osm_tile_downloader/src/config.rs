@@ -12,11 +12,11 @@ lazy_static::lazy_static! {
 
     pub static ref SLED_DB: sled::Db = sled::open(LINKS_CONFIG.db_location.clone()).expect("cannot open db:");
 
-    pub static ref DB_TILE_SERVER_CONFIGS: 
-        typed_sled::Tree::<String, TileServerConfig> 
+    pub static ref DB_TILE_SERVER_CONFIGS:
+        typed_sled::Tree::<String, TileServerConfig>
         = typed_sled::Tree::<String, TileServerConfig>::open(&SLED_DB, "tile_server_configs");
-    pub static ref DB_SOCKS_SCRAPER_CONFIGS: 
-        typed_sled::Tree::<String, Socks5ProxyScraperConfig> 
+    pub static ref DB_SOCKS_SCRAPER_CONFIGS:
+        typed_sled::Tree::<String, Socks5ProxyScraperConfig>
         = typed_sled::Tree::<String, Socks5ProxyScraperConfig>::open(&SLED_DB, "socks5_scraper_configs");
 
     pub static ref DB_STAT_COUNTER:
@@ -24,7 +24,9 @@ lazy_static::lazy_static! {
          = typed_sled::Tree::<StatCounterKey, StatCounterVal>::open(&SLED_DB, "stat_counter_2");
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
+#[derive(
+    Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq, PartialOrd, Ord,
+)]
 pub struct StatCounterKey {
     pub stat_type: String,
     pub item_a: String,
@@ -34,15 +36,17 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StatCounterVal {
     event_count: HashMap<String, u64>,
-    edit_at: f64
+    edit_at: f64,
 }
 
 const STAT_COUNTER_ENTRY_TTL: f64 = 3600.0;
 
 impl StatCounterVal {
     fn increment(&mut self, event: &String) {
-        self.event_count
-            .insert(event.clone(), self.event_count.get(&event.clone()).unwrap_or(&0) + 1);
+        self.event_count.insert(
+            event.clone(),
+            self.event_count.get(&event.clone()).unwrap_or(&0) + 1,
+        );
         self.edit_at = get_current_timestamp();
     }
 }
@@ -61,15 +65,15 @@ pub fn stat_counter_increment(
 
     DB_STAT_COUNTER.update_and_fetch(&hash_key.to_owned(), |v| match v {
         Some(mut stat_counter) => {
-            stat_counter.increment(&stat_event.to_owned());    
+            stat_counter.increment(&stat_event.to_owned());
             Some(stat_counter)
-        },
+        }
         None => {
             let mut stat_counter = StatCounterVal {
                 event_count: HashMap::new(),
                 edit_at: get_current_timestamp(),
             };
-            stat_counter.increment( &stat_event.to_owned());
+            stat_counter.increment(&stat_event.to_owned());
             Some(stat_counter)
         }
     })?;
@@ -87,10 +91,7 @@ pub fn stat_counter_get_all() -> Vec<(StatCounterKey, String, u64)> {
                 return;
             }
             for (event, counter) in v.event_count.iter() {
-                _vec.push((
-                    hash_key.clone(),
-                    event.clone(), 
-                    *counter));
+                _vec.push((hash_key.clone(), event.clone(), *counter));
             }
         }
     });
@@ -98,8 +99,10 @@ pub fn stat_counter_get_all() -> Vec<(StatCounterKey, String, u64)> {
     _vec
 }
 
-pub fn stat_count_events_for_items(items: &Vec<&str>) -> HashMap<String, HashMap<String, u64>> {
-    let mut _map = HashMap::<String,HashMap<String, u64>>::new();
+pub fn stat_count_events_for_items(
+    items: &Vec<&str>,
+) -> HashMap<String, HashMap<String, u64>> {
+    let mut _map = HashMap::<String, HashMap<String, u64>>::new();
     for item in items.iter() {
         _map.insert(item.to_string(), HashMap::<String, u64>::new());
     }
@@ -107,7 +110,7 @@ pub fn stat_count_events_for_items(items: &Vec<&str>) -> HashMap<String, HashMap
     for (key, event, count) in stat_counter_get_all() {
         for item in items {
             if key.item_a.eq(item) || key.item_b.eq(item) {
-                let mut _sub_map  = _map.get_mut(*item).unwrap();
+                let mut _sub_map = _map.get_mut(*item).unwrap();
                 let old_count = _sub_map.get(&event.clone()).unwrap_or(&0);
                 _sub_map.insert(event.clone(), count + old_count);
             }
@@ -203,6 +206,7 @@ pub async fn init_database() -> anyhow::Result<()> {
         "ok. Config: {} ...",
         &format!("{:#?}", *LINKS_CONFIG).as_str()[..200]
     );
+    clear_tempfiles().await?;
     for server_config in &mut *LINKS_CONFIG.tile_servers.clone() {
         DB_TILE_SERVER_CONFIGS
             .insert(&server_config.name, server_config)
@@ -228,7 +232,7 @@ pub async fn init_database() -> anyhow::Result<()> {
             "found db tree {:?}: len = {} ; size = {} KB",
             String::from_utf8_lossy(db_tree_name),
             tree.len(),
-            total_size/1024,
+            total_size / 1024,
         )
     }
     Ok(())
@@ -326,8 +330,7 @@ impl ImageFetchDescriptor {
             crate::geo_trig::xyz_to_bing_quadkey(self.x, self.y, self.z),
         );
 
-        strfmt::strfmt(&server_config.url, &map)
-            .context("failed strfmt on URL")
+        strfmt::strfmt(&server_config.url, &map).context("failed strfmt on URL")
     }
 }
 
@@ -364,6 +367,12 @@ pub async fn tempfile() -> anyhow::Result<async_tempfile::TempFile> {
     Ok(temp_file)
 }
 
+pub async fn clear_tempfiles() -> anyhow::Result<()> {
+    let tmp_parent = LINKS_CONFIG.tile_location.join("tmp");
+    tokio::fs::remove_dir_all(&tmp_parent).await?;
+    tokio::fs::create_dir_all(&tmp_parent).await?;
+    Ok(())
+}
 
 pub fn get_current_timestamp() -> f64 {
     std::time::SystemTime::now()

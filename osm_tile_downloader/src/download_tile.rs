@@ -11,9 +11,7 @@ use std::io::Cursor;
 use geojson::FeatureCollection;
 
 use crate::config;
-use crate::config::{
-    ImageFetchDescriptor, TileServerConfig, LINKS_CONFIG,
-};
+use crate::config::{ImageFetchDescriptor, TileServerConfig, LINKS_CONFIG};
 use crate::proxy_manager;
 
 fn validate_fetched_tile(
@@ -56,7 +54,7 @@ fn validate_fetched_tile(
 async fn download_tile(
     server_config: &TileServerConfig,
     fetch_descriptor: &ImageFetchDescriptor,
-) -> Result<(PathBuf,  DynamicImage)> {
+) -> Result<(PathBuf, DynamicImage)> {
     let final_file = fetch_descriptor.get_disk_path(server_config).await?;
     let url = &fetch_descriptor.get_some_url(server_config)?;
 
@@ -86,7 +84,7 @@ pub async fn get_tile(
     };
     fetch_info.validate(&server_config)?;
     let path = fetch_info.get_disk_path(&server_config).await?;
-    
+
     let img = download_tile(&server_config, &fetch_info).await?;
 
     Ok((path, img.1))

@@ -1,0 +1,6 @@
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+<form hx-post="/api/geoduck/repl/" hx-target="#search-results">
+    <textarea id="sql_query" name="sql_query" type="text" cols="80" rows="20" ></textarea>
+    <button type="submit">Submit SQL to Geo Duck</button>
+</form>
+<pre id="search-results"></pre>

@@ -1,5 +1,6 @@
-use std::time::Duration;
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
 
 use crate::config::{self, *};
 use anyhow::Context;
@@ -35,7 +36,9 @@ pub struct Socks5ProxyEntry {
 impl Socks5ProxyEntry {
     fn needs_recheck(&self) -> bool {
         (!self.checked)
-            || (self.last_check.unwrap_or(0.0) + SCRAPER_REFRESH_SECONDS * ((self.failed_checks as f64) * 0.3 + 1.0)
+            || (self.last_check.unwrap_or(0.0)
+                + SCRAPER_REFRESH_SECONDS
+                    * ((self.failed_checks as f64) * 0.3 + 1.0)
                 < get_current_timestamp())
     }
     fn needs_delete(&self) -> bool {
@@ -44,7 +47,6 @@ impl Socks5ProxyEntry {
             && (get_current_timestamp() - self.last_scraped > ENTRY_DELETE_SECONDS)
     }
 }
-
 
 async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
     use rand::seq::SliceRandom;
@@ -199,12 +201,8 @@ async fn refresh_all_socks5_proxy_lists() -> anyhow::Result<()> {
 
 async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()> {
     let temp_file = tempfile().await?;
-    crate::fetch::fetch(
-        "http://icanhazip.com/",
-        temp_file.file_path(),
-        &proxy.addr,
-    )
-    .await?;
+    crate::fetch::fetch("http://icanhazip.com/", temp_file.file_path(), &proxy.addr)
+        .await?;
     let resp = String::from_utf8_lossy(
         tokio::fs::read(temp_file.file_path()).await?.as_slice(),
     )
@@ -241,47 +239,55 @@ pub async fn proxy_manager_iteration() -> Result<()> {
     let addr_list: Vec<&str> = all_proxies.iter().map(|e| e.addr.as_str()).collect();
     let all_proxy_event_count = &config::stat_count_events_for_items(&addr_list);
     futures::stream::iter(all_proxies)
-        .for_each_concurrent(LINKS_CONFIG.proxy_fetch_parallel as usize, |mut v| async move {
-            // check proxy event count and save
-            if let Some(x) = all_proxy_event_count.get(&v.addr) {
-                v.last_success_count = *x.get("success").unwrap_or(&0);
-                v.last_err_count = *x.get("fail").unwrap_or(&0);
-                if (v.last_success_count != 0 || v.last_err_count != 0) && DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
+        .for_each_concurrent(
+            LINKS_CONFIG.proxy_fetch_parallel as usize,
+            |mut v| async move {
+                // check proxy event count and save
+                if let Some(x) = all_proxy_event_count.get(&v.addr) {
+                    v.last_success_count = *x.get("success").unwrap_or(&0);
+                    v.last_err_count = *x.get("fail").unwrap_or(&0);
+                    if (v.last_success_count != 0 || v.last_err_count != 0)
+                        && DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err()
+                    {
+                        eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
+                    }
+                }
+
+                if !v.needs_recheck() {
+                    return;
+                }
+                let t0 = get_current_timestamp();
+                let check = _socks5_check_proxy(&mut v).await;
+                v.last_check = Some(get_current_timestamp());
+                v.checked = true;
+                v.accepted = check.is_ok();
+                if v.accepted {
+                    v.failed_checks = 0;
+                } else {
+                    v.failed_checks += 1;
+                }
+                v.last_lag = Some(get_current_timestamp() - t0);
+                v.last_check_error = if check.is_ok() {
+                    "".to_owned()
+                } else {
+                    format!("check err: {:?}", check.err())
+                };
+
+                if DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
                     eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
                 }
-            }
-
-            if !v.needs_recheck() {
-                return;
-            }
-            let t0 = get_current_timestamp();
-            let check = _socks5_check_proxy(&mut v).await;
-            v.last_check = Some(get_current_timestamp());
-            v.checked = true;
-            v.accepted = check.is_ok();
-            if v.accepted {
-                v.failed_checks = 0;
-            } else {
-                v.failed_checks += 1;
-            }
-            v.last_lag = Some(get_current_timestamp() - t0);
-            v.last_check_error = if check.is_ok() {
-                "".to_owned()
-            } else {
-                format!("check err: {:?}", check.err())
-            };
-
-            if DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
-                eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
-            }
-            // do the delete last, to keep some older entries after reboot
-            if v.needs_delete() {
-                if DB_SOCKS5_PROXY_ENTRY.remove(&v.addr).is_err() {
-                    eprintln!("db failed to delete old socks5 item: {}", &v.addr);
+                // do the delete last, to keep some older entries after reboot
+                if v.needs_delete() {
+                    if DB_SOCKS5_PROXY_ENTRY.remove(&v.addr).is_err() {
+                        eprintln!(
+                            "db failed to delete old socks5 item: {}",
+                            &v.addr
+                        );
+                    }
+                    _deleted += 1;
                 }
-                _deleted += 1;
-            }
-        })
+            },
+        )
         .await;
     eprintln!(
         "proxy check finalized: {} working, {} broken, {} deleted",
@@ -299,7 +305,8 @@ pub async fn proxy_manager_loop() {
         if proxy_manager_iteration().await.is_err() {
             eprintln!("proxy manager loop iteration failed!");
         }
-        tokio::time::sleep(Duration::from_secs_f64(SCRAPER_REFRESH_SECONDS/2.0)).await;
+        tokio::time::sleep(Duration::from_secs_f64(SCRAPER_REFRESH_SECONDS / 2.0))
+            .await;
     }
 }
 
@@ -313,42 +320,53 @@ fn get_all_proxy_entries() -> Vec<Socks5ProxyEntry> {
 pub fn get_all_working_proxies() -> Vec<Socks5ProxyEntry> {
     get_all_proxy_entries()
         .iter()
-        .filter(|&e| e.accepted).cloned()
+        .filter(|&e| e.accepted)
+        .cloned()
         .collect()
 }
 
 pub fn get_all_broken_proxies() -> Vec<Socks5ProxyEntry> {
     get_all_proxy_entries()
         .iter()
-        .filter(|&e| !e.accepted).cloned()
+        .filter(|&e| !e.accepted)
+        .cloned()
         .collect()
 }
 
 pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
     use rand::seq::SliceRandom;
     get_all_working_proxies()
-        .choose_multiple(&mut rand::thread_rng(), count as usize).cloned().collect()
+        .choose_multiple(&mut rand::thread_rng(), count as usize)
+        .cloned()
+        .collect()
 }
 
 // type ValidatorFunction<T> where T: std::marker::Send + std::marker::Sync = Arc<dyn Fn(&PathBuf)->anyhow::Result<T> + std::marker::Send + std::marker::Sync + 'static>;
 use tokio::task::spawn_blocking;
 
-
-fn proxy_stat_increment(_type: &str, url: &str, proxy_addr: &str,proxy_cat: &str, success: bool) -> anyhow::Result<()>{
+fn proxy_stat_increment(
+    _type: &str,
+    url: &str,
+    proxy_addr: &str,
+    proxy_cat: &str,
+    success: bool,
+) -> anyhow::Result<()> {
     let url_parsed = url::Url::parse(url)?;
     let url_domain = url_parsed.domain().context("url has no domain??")?;
-    let stat_type = format!("proxy_{}_socksaddr_targetdomain", _type); 
+    let stat_type = format!("proxy_{}_socksaddr_targetdomain", _type);
     crate::config::stat_counter_increment(
-        &stat_type, 
-        if success {"success"} else {"fail"}, 
-        proxy_addr, url_domain
+        &stat_type,
+        if success { "success" } else { "fail" },
+        proxy_addr,
+        url_domain,
     )?;
-    
-    let stat_type = format!("proxy_{}_sockscateg_targetdomain", _type); 
+
+    let stat_type = format!("proxy_{}_sockscateg_targetdomain", _type);
     crate::config::stat_counter_increment(
-        &stat_type, 
-        if success {"success"} else {"fail"}, 
-        proxy_cat, url_domain
+        &stat_type,
+        if success { "success" } else { "fail" },
+        proxy_cat,
+        url_domain,
     )?;
     Ok(())
 }
@@ -365,17 +383,51 @@ pub async fn download_once<T>(
 ) -> anyhow::Result<(T, PathBuf)>
 where
     T: std::marker::Send + 'static,
-{   let path2 = path.clone();
+{
+    let path2 = path.clone();
     let res = crate::fetch::fetch(url.as_str(), &path, &socks_addr).await;
-    proxy_stat_increment("download", url.as_str(), socks_addr.as_str(), socks_cat.as_str(), res.is_ok())?;
-    res.with_context(|| format!("download error, proxy {} ({}): ", socks_addr, socks_cat))?;
+    proxy_stat_increment(
+        "download",
+        url.as_str(),
+        socks_addr.as_str(),
+        socks_cat.as_str(),
+        res.is_ok(),
+    )?;
+    res.with_context(|| {
+        format!("download error, proxy {} ({}): ", socks_addr, socks_cat)
+    })?;
 
     let res = spawn_blocking(move || parser(&path)).await?;
-    proxy_stat_increment("parse", url.as_str(), socks_addr.as_str(), socks_cat.as_str(),res.is_ok())?;
-    Ok((res.with_context(|| format!("validation error, proxy {} ({}): ", socks_addr, socks_cat))?, path2))
+    proxy_stat_increment(
+        "parse",
+        url.as_str(),
+        socks_addr.as_str(),
+        socks_cat.as_str(),
+        res.is_ok(),
+    )?;
+    Ok((
+        res.with_context(|| {
+            format!("validation error, proxy {} ({}): ", socks_addr, socks_cat)
+        })?,
+        path2,
+    ))
 }
 
 use std::path::PathBuf;
+
+// pub trait DownloadableAsset<T> where T: Clone {
+//      fn url(&self) -> &str;
+//      fn final_path(&self) -> &Path;
+//      fn parse(&self, tmp_file: &Path) -> Result<T>;
+// }
+
+// pub async fn download2<T> (asset: Arc<dyn DownloadableAsset<T>>)  {
+//     let url = asset.url();
+//     let path = asset.final_path();
+//     let parser = |tmp| asset.parse(tmp);
+//     download(url, path, parser).await?
+// }
+
 pub async fn download<T>(
     url: &str,
     path: &PathBuf,
@@ -388,8 +440,8 @@ pub async fn download<T>(
 where
     T: std::marker::Send + 'static,
 {
-    use rand::seq::SliceRandom;
     use futures::stream::{FuturesUnordered, StreamExt};
+    use rand::seq::SliceRandom;
 
     // if path exists, check it, if failed delete it.
     // path.exists() is sync, so do stat instead
@@ -397,10 +449,13 @@ where
         let parser2 = parser.clone();
         let path = path.clone();
         let path2 = path.clone();
-        if let Ok(result)  = spawn_blocking(move || parser2(&path)).await? {
+        if let Ok(result) = spawn_blocking(move || parser2(&path)).await? {
             return Ok(result);
         } else {
-            eprintln!("DELETING existing file that failed verification: {:?}", path2.to_str());
+            eprintln!(
+                "DELETING existing file that failed verification: {:?}",
+                path2.to_str()
+            );
             tokio::fs::remove_file(path2).await?;
         }
     }
@@ -412,7 +467,10 @@ where
         .context("no socks proxy")?;
 
     let all_socks = get_random_proxies(url, LINKS_CONFIG.retries);
-    let mut all_socks: Vec<(String, String)> = all_socks.iter().map(|e| (e.addr.to_owned(), e.category.to_owned())).collect();
+    let mut all_socks: Vec<(String, String)> = all_socks
+        .iter()
+        .map(|e| (e.addr.to_owned(), e.category.to_owned()))
+        .collect();
     all_socks.push((tor_addr.clone(), "tor".to_owned()));
     let mut all_temps = vec![];
     for _ in 0..all_socks.len() {
@@ -422,15 +480,24 @@ where
 
     let mut parallel_tasks = FuturesUnordered::new();
 
-    for ((socks_addr, socks_cat), temp) in all_socks.iter().zip(all_temps) {
+    for (i, ((socks_addr, socks_cat), temp)) in
+        all_socks.iter().zip(all_temps).enumerate()
+    {
         let temp_path = temp.file_path().clone();
         let url = url.to_owned();
-        let task = tokio::task::spawn(download_once::<T>(
-            url.clone(),
-            temp_path,
-            parser.clone(),
-            socks_addr.clone(), socks_cat.clone(),
-        ));
+        let initial_delay = Duration::from_millis(1000 * i);
+
+        let task = tokio::task::spawn(async move || {
+            tokio::time::sleep(initial_delay).await;
+
+            download_once::<T>(
+                url.clone(),
+                temp_path,
+                parser.clone(),
+                socks_addr.clone(),
+                socks_cat.clone(),
+            )
+        });
         parallel_tasks.push(task);
 
         tokio::time::sleep(Duration::from_millis(1)).await;

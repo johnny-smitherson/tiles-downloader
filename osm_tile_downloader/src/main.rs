@@ -1,7 +1,8 @@
 pub(crate) mod config;
-pub(crate) mod fetch;
 pub(crate) mod download_tile;
+pub(crate) mod fetch;
 pub(crate) mod geo_trig;
+pub(crate) mod overt_geo_duck;
 pub(crate) mod proxy_manager;
 pub(crate) mod rocket_anyhow;
 
@@ -31,20 +32,44 @@ fn index() -> rocket_anyhow::Result<Template> {
 #[get("/proxy")]
 async fn proxy_info() -> rocket_anyhow::Result<Template> {
     let scrapers = config::get_all_socks5_scrapers()?;
-    let scraper_events = config::stat_count_events_for_items(&scrapers.iter().map(|e| e.name.as_str()).collect());
-    let scrapers: Vec<(_, Vec<_>)> = scrapers.iter().map(|s| (s, scraper_events.get(&s.name).unwrap().iter().collect())).collect();
+    let scraper_events = config::stat_count_events_for_items(
+        &scrapers.iter().map(|e| e.name.as_str()).collect(),
+    );
+    let scrapers: Vec<(_, Vec<_>)> = scrapers
+        .iter()
+        .map(|s| (s, scraper_events.get(&s.name).unwrap().iter().collect()))
+        .collect();
 
     Ok(Template::render(
         "proxy",
         context! {
-            fetch_queue_ready: crate::fetch::fetch_queue_ready()?,
-            fetch_queue_done: crate::fetch::fetch_queue_done()?,
+            // fetch_queue_ready: crate::fetch::fetch_queue_ready()?,
+            // fetch_queue_done: crate::fetch::fetch_queue_done()?,
             scrapers: scrapers,
             all_working_proxies: crate::proxy_manager::get_all_working_proxies(),
             all_broken_proxies: crate::proxy_manager::get_all_broken_proxies(),
             stat_counters: config::stat_counter_get_all(),
         },
     ))
+}
+
+use rocket::form::Form;
+
+#[derive(FromForm)]
+struct GeoDuckReplRequest {
+    sql_query: String,
+}
+
+#[post("/api/geoduck/repl", data = "<form>")]
+async fn geoduck_repl_api(
+    form: Form<GeoDuckReplRequest>,
+) -> rocket_anyhow::Result<String> {
+    Ok(crate::overt_geo_duck::geoduck_execute_to_str(&form.sql_query).await?)
+}
+
+#[get("/geoduck/repl")]
+fn geoduck_repl() -> rocket_anyhow::Result<Template> {
+    Ok(Template::render("geoduck", context! {}))
 }
 
 #[get("/health_check")]
@@ -326,9 +351,9 @@ fn pixel_max_contrast(px: &image::Rgb<u8>) -> image::Rgb<u8> {
 #[rocket::main]
 async fn main() -> rocket_anyhow::Result<()> {
     init_database().await?;
-
+    overt_geo_duck::init_geoduck()?;
     // check we can run the manager once
-    let _fetch_manager = tokio::spawn(fetch::fetch_loop());
+    // let _fetch_manager = tokio::spawn(fetch::fetch_loop());
     let _proxy_manager = tokio::spawn(proxy_manager::proxy_manager_loop());
 
     let _rocket = rocket::build()
@@ -343,6 +368,8 @@ async fn main() -> rocket_anyhow::Result<()> {
                 geo_search_json,
                 geo_index,
                 proxy_info,
+                geoduck_repl,
+                geoduck_repl_api,
             ],
         )
         .attach(Template::fairing())
@@ -351,7 +378,7 @@ async fn main() -> rocket_anyhow::Result<()> {
 
     eprintln!("aborting worker loops...");
     _proxy_manager.abort();
-    _fetch_manager.abort();
+    // _fetch_manager.abort();
     eprintln!("clean exit done.");
 
     Ok(())
