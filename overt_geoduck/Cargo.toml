@@ -1,0 +1,24 @@
+[package]
+name = "overt_geoduck"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "overt_geoduck"
+crate_type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.82"
+serde = "1.0.197"
+serde_json = "1.0.115"
+geojson = "0.24.1"
+strfmt = "0.2.4"
+duckdb = {version="0.10.1", features = ["bundled", "httpfs", "json", "parquet"] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

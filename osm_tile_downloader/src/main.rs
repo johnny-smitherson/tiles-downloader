@@ -2,12 +2,13 @@ pub(crate) mod config;
 pub(crate) mod download_tile;
 pub(crate) mod fetch;
 pub(crate) mod geo_trig;
-pub(crate) mod overt_geo_duck;
 pub(crate) mod proxy_manager;
 pub(crate) mod rocket_anyhow;
 
 #[macro_use]
 extern crate rocket;
+
+extern crate overt_geoduck;
 
 use anyhow::anyhow;
 use anyhow::Context;
@@ -64,7 +65,7 @@ struct GeoDuckReplRequest {
 async fn geoduck_repl_api(
     form: Form<GeoDuckReplRequest>,
 ) -> rocket_anyhow::Result<String> {
-    Ok(crate::overt_geo_duck::geoduck_execute_to_str(&form.sql_query).await?)
+    Ok(overt_geoduck::geoduck_execute_to_str(&form.sql_query).await?)
 }
 
 #[get("/geoduck/repl")]
@@ -248,7 +249,7 @@ async fn get_tile_with_overlay(
 #[rocket::main]
 async fn main() -> rocket_anyhow::Result<()> {
     init_database().await?;
-    overt_geo_duck::init_geoduck()?;
+    // overt_geo_duck::init_geoduck()?;
     // check we can run the manager once
     // let _fetch_manager = tokio::spawn(fetch::fetch_loop());
     let _proxy_manager = tokio::spawn(proxy_manager::proxy_manager_loop());

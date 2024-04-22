@@ -12,31 +12,44 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
+# base -----------------------------------------------------------------------------
 anyhow = "1.0.82"
-# clap = {version = "4.5.4", features=["cargo"]}
-futures = "0.3.30"
-image = "0.25.1"
-indicatif = "0.17.8"
-lazy_static = "1.4.0"
-rand = "0.8.5"
-reqwest = { version = "0.12", features = ["stream"] }
-rocket = "0.5.0"
 serde = "1.0.197"
 strfmt = "0.2.4"
-tokio = { version = "1.37.0", features = ["fs", "macros",  "time", "rt-multi-thread", "process"] }
+lazy_static = "1.4.0"
+rand = "0.8.5"
+regex = "1.10.4"
+
+# cfg & db-----------------------------------------------------------------------------
 toml = "0.8.12"
 sled = "0.34.7"
 typed-sled = "0.2.3"
-async-tempfile = "0.5.0"
+
+# http client, server, web-----------------------------------------------------------
+# reqwest = { version = "0.12", features = ["stream"] }
+indicatif = "0.17.8"
+rocket = "0.5.0"
 rocket_dyn_templates = {version="0.1.0", features=["tera", "handlebars"]}
 urlencoding = "2.1.3"
+url = "2.5.0"
 serde_json = "1.0.115"
 geojson = "0.24.1"
-regex = "1.10.4"
-url = "2.5.0"
 
-# for duckdb
-duckdb = {version="0.10.1", features = ["bundled", "httpfs", "json", "parquet"] }
+# cli -----------------------------------------------------------------------------
+# clap = {version = "4.5.4", features=["cargo"]}
+
+# async -----------------------------------------------------------------------------
+futures = "0.3.30"
+tokio = { version = "1.37.0", features = ["fs", "macros",  "time", "rt-multi-thread", "process"] }
+async-tempfile = "0.5.0"
+
+# imgproc -----------------------------------------------------------------------------
+image = "0.25.1"
+
+
+# local  -----------------------------------------------------------------------------
+overt_geoduck = { path = "../overt_geoduck", version = "0.1.0" }
+
 
 
 [profile.dev]
