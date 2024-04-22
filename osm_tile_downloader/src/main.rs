@@ -185,7 +185,6 @@ async fn get_tile(
     })?))
 }
 
-
 use rocket::http::ContentType;
 use rocket::response::Responder;
 use rocket::Response;

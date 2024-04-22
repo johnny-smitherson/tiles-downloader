@@ -302,7 +302,6 @@ pub async fn search_geojson(
 }
 use tokio::task::spawn_blocking;
 
-
 #[derive(FromForm, UriDisplayQuery)]
 pub struct OverlayDrawCoordinates {
     pub point: Option<GeoPoint>,
