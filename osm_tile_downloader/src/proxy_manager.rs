@@ -335,8 +335,15 @@ pub fn get_all_broken_proxies() -> Vec<Socks5ProxyEntry> {
 
 pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
     use rand::seq::SliceRandom;
+    if count == 0 {
+        return vec![];
+    }
     get_all_working_proxies()
-        .choose_multiple(&mut rand::thread_rng(), count as usize)
+        .choose_multiple_weighted(&mut rand::thread_rng(), count as usize, |x| {
+            (1 + 2 * x.last_success_count) as f64
+                / (1 + x.last_success_count + x.last_err_count) as f64
+        })
+        .expect("cannot random choose proxy items?")
         .cloned()
         .collect()
 }
@@ -368,58 +375,72 @@ fn proxy_stat_increment(
         proxy_cat,
         url_domain,
     )?;
+
+    // if proxy was successful, update its last_check timestamp. also, increment the success/fail counts
+    if let Some(mut old_entry) =
+        DB_SOCKS5_PROXY_ENTRY.get(&proxy_addr.to_string())?
+    {
+        if success {
+            old_entry.last_check = Some(crate::config::get_current_timestamp());
+            old_entry.last_success_count += 1;
+            old_entry.accepted = true;
+        } else {
+            old_entry.last_err_count += 1;
+            if old_entry.last_err_count > 50 && old_entry.last_success_count == 0 {
+                old_entry.accepted = false;
+            }
+        }
+        DB_SOCKS5_PROXY_ENTRY.insert(&proxy_addr.to_string(), &old_entry)?;
+    }
     Ok(())
 }
 
-pub async fn download_once<T>(
-    url: String,
-    path: PathBuf,
-    parser: (impl Fn(&PathBuf) -> anyhow::Result<T>
-         + std::marker::Sync
-         + std::marker::Send
-         + 'static),
-    socks_addr: String,
-    socks_cat: String,
-) -> anyhow::Result<(T, PathBuf)>
-where
-    T: std::marker::Send + 'static,
-{
-    let path2 = path.clone();
-    let res = crate::fetch::fetch(url.as_str(), &path, &socks_addr).await;
-    proxy_stat_increment(
-        "download",
-        url.as_str(),
-        socks_addr.as_str(),
-        socks_cat.as_str(),
-        res.is_ok(),
-    )?;
-    res.with_context(|| {
-        format!("download error, proxy {} ({}): ", socks_addr, socks_cat)
-    })?;
+// pub async fn download_once<T>(
+//     url: String,
+//     path: PathBuf,
+//     parser: (impl Fn(&PathBuf) -> anyhow::Result<T>
+//          + std::marker::Sync
+//          + std::marker::Send
+//          + 'static),
+//     socks_addr: String,
+//     socks_cat: String,
+//     initial_delay: Duration,
+// ) -> anyhow::Result<(T, PathBuf)>
+// where
+//     T: std::marker::Send + 'static,
+// {
+//     tokio::time::sleep(initial_delay).await;
 
-    let res = spawn_blocking(move || parser(&path)).await?;
-    proxy_stat_increment(
-        "parse",
-        url.as_str(),
-        socks_addr.as_str(),
-        socks_cat.as_str(),
-        res.is_ok(),
-    )?;
-    Ok((
-        res.with_context(|| {
-            format!("validation error, proxy {} ({}): ", socks_addr, socks_cat)
-        })?,
-        path2,
-    ))
-}
+//     let path2 = path.clone();
+//     let res = crate::fetch::fetch(url.as_str(), &path, &socks_addr).await;
+//     proxy_stat_increment(
+//         "download",
+//         url.as_str(),
+//         socks_addr.as_str(),
+//         socks_cat.as_str(),
+//         res.is_ok(),
+//     )?;
+//     res.with_context(|| {
+//         format!("download error, proxy {} ({}): ", socks_addr, socks_cat)
+//     })?;
+
+//     let res = spawn_blocking(move || parser(&path)).await?;
+//     proxy_stat_increment(
+//         "parse",
+//         url.as_str(),
+//         socks_addr.as_str(),
+//         socks_cat.as_str(),
+//         res.is_ok(),
+//     )?;
+//     Ok((
+//         res.with_context(|| {
+//             format!("validation error, proxy {} ({}): ", socks_addr, socks_cat)
+//         })?,
+//         path2,
+//     ))
+// }
 
 use std::path::PathBuf;
-
-// pub trait DownloadableAsset<T> where T: Clone {
-//      fn url(&self) -> &str;
-//      fn final_path(&self) -> &Path;
-//      fn parse(&self, tmp_file: &Path) -> Result<T>;
-// }
 
 // pub async fn download2<T> (asset: Arc<dyn DownloadableAsset<T>>)  {
 //     let url = asset.url();
@@ -428,39 +449,10 @@ use std::path::PathBuf;
 //     download(url, path, parser).await?
 // }
 
-pub async fn download<T>(
+async fn setup_proxy_and_temp(
     url: &str,
-    path: &PathBuf,
-    parser: (impl Fn(&PathBuf) -> anyhow::Result<T>
-         + std::marker::Sync
-         + std::marker::Send
-         + 'static
-         + Clone),
-) -> anyhow::Result<T>
-where
-    T: std::marker::Send + 'static,
-{
-    use futures::stream::{FuturesUnordered, StreamExt};
+) -> Result<Vec<(usize, String, String, async_tempfile::TempFile)>> {
     use rand::seq::SliceRandom;
-
-    // if path exists, check it, if failed delete it.
-    // path.exists() is sync, so do stat instead
-    if tokio::fs::metadata(path).await.is_ok() {
-        let parser2 = parser.clone();
-        let path = path.clone();
-        let path2 = path.clone();
-        if let Ok(result) = spawn_blocking(move || parser2(&path)).await? {
-            return Ok(result);
-        } else {
-            eprintln!(
-                "DELETING existing file that failed verification: {:?}",
-                path2.to_str()
-            );
-            tokio::fs::remove_file(path2).await?;
-        }
-    }
-    tokio::time::sleep(Duration::from_millis(1)).await;
-
     let tor_addr = LINKS_CONFIG
         .tor_addr_list
         .choose(&mut rand::thread_rng())
@@ -476,28 +468,202 @@ where
     for _ in 0..all_socks.len() {
         all_temps.push(crate::config::tempfile().await?);
     }
-    let all_temps: Vec<_> = all_temps.iter().collect();
 
+    let mut _vec = vec![];
+    // for (i, ((socks_addr, socks_cat), temp)) in
+    // all_socks.iter().zip(all_temps).enumerate() {
+    //     _vec.push((i, *socks_addr, *socks_cat, *temp))
+    // }
+    for i in 0..all_socks.len() {
+        _vec.push((
+            i,
+            all_socks[i].0.clone(),
+            all_socks[i].1.clone(),
+            all_temps.swap_remove(0),
+        ))
+    }
+    Ok(_vec)
+}
+
+// pub async fn download<T>(
+//     url: &str,
+//     path: &PathBuf,
+//     parser: (impl Fn(&PathBuf) -> anyhow::Result<T>
+//          + std::marker::Sync
+//          + std::marker::Send
+//          + 'static
+//          + Clone),
+// ) -> anyhow::Result<T>
+// where
+//     T: std::marker::Send + 'static,
+// {
+//     use futures::stream::{FuturesUnordered, StreamExt};
+//     use rand::seq::SliceRandom;
+
+//     // if path exists, check it, if failed delete it.
+//     // path.exists() is sync, so do stat instead
+//     if tokio::fs::metadata(path).await.is_ok() {
+//         let parser2 = parser.clone();
+//         let path = path.clone();
+//         let path2 = path.clone();
+//         if let Ok(result) = spawn_blocking(move || parser2(&path)).await? {
+//             return Ok(result);
+//         } else {
+//             eprintln!(
+//                 "DELETING existing file that failed verification: {:?}",
+//                 path2.to_str()
+//             );
+//             tokio::fs::remove_file(path2).await?;
+//         }
+//     }
+//     tokio::time::sleep(Duration::from_millis(1)).await;
+
+//     let mut parallel_tasks = FuturesUnordered::new();
+//     for (i, socks_addr, socks_cat, temp) in setup_proxy_and_temp(url).await? {
+//         let temp_path = temp.file_path().clone();
+//         let url = url.to_owned();
+//         let initial_delay = Duration::from_millis(1000 * i as u64);
+//         let parser = parser.clone();
+
+//         let task = tokio::task::spawn(download_once::<T>(
+//             url.clone(),
+//             temp_path,
+//             parser,
+//             socks_addr.clone(),
+//             socks_cat.clone(),
+//             initial_delay,
+//         ));
+//         parallel_tasks.push(task);
+
+//         tokio::time::sleep(Duration::from_millis(1)).await;
+//     }
+
+//     // extract the good result
+//     let mut _ok_result = None;
+//     let mut _errors = vec![];
+//     loop {
+//         tokio::time::sleep(Duration::from_millis(1)).await;
+//         match parallel_tasks.next().await {
+//             Some(result) => {
+//                 let result = result.context("cannot obtain finalized result")?;
+//                 if let Err(err) = result {
+//                     _errors.push(err);
+//                 } else {
+//                     _ok_result = Some(result.unwrap());
+//                     break;
+//                 }
+//             }
+//             None => {
+//                 break;
+//             }
+//         }
+//     }
+//     if let Some((check_result, good_path)) = _ok_result {
+//         // kill all the next results
+//         parallel_tasks.iter().for_each(|f| f.abort());
+
+//         tokio::fs::rename(good_path, path).await?;
+//         return Ok(check_result);
+//     }
+
+//     anyhow::bail!("err: cannot download. see below: \n\n {:#?}", _errors);
+// }
+
+pub trait DownloadId:
+    Clone + Serialize + for<'de> Deserialize<'de> + Send + Sync + std::fmt::Debug
+{
+    type TParseResult: Serialize + for<'de> Deserialize<'de> + Send + Sync;
+    fn get_version(&self) -> usize;
+    fn is_valid_request(&self) -> Result<()>;
+    fn get_random_url(&self) -> Result<String>;
+    fn get_final_path(&self) -> Result<PathBuf>;
+    fn parse_respose(&self, tmp_file: &Path) -> Result<Self::TParseResult>;
+}
+
+fn get_table_name<T: DownloadId>(download_id: &T) -> String {
+    use std::any::type_name;
+    let table_name = format!(
+        "download_parse_result_id={}_res={}_v{}",
+        type_name::<T>(),
+        type_name::<T::TParseResult>(),
+        download_id.get_version(),
+    );
+    eprintln!("table name: {}", table_name);
+    table_name
+}
+
+#[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
+struct DownloadEntry<TParseResult> {
+    parse_result: Option<TParseResult>,
+    error_txt: String,
+}
+
+fn get_db_tree<T: DownloadId>(
+    download_id: &T,
+) -> typed_sled::Tree<T, DownloadEntry<T::TParseResult>> {
+    let table_name = get_table_name(download_id);
+    typed_sled::Tree::<_, _>::open(&SLED_DB, table_name.as_str())
+}
+
+pub async fn download_once_2<T: DownloadId + 'static>(
+    download_id: T,
+    path: PathBuf,
+    socks_addr: String,
+    socks_cat: String,
+    initial_delay: Duration,
+) -> anyhow::Result<(T::TParseResult, PathBuf)>
+where
+    T: std::marker::Send + 'static,
+{
+    tokio::time::sleep(initial_delay).await;
+    let url = download_id.get_random_url()?;
+    let path2 = path.clone();
+    let res = crate::fetch::fetch(url.as_str(), &path, &socks_addr).await;
+    proxy_stat_increment(
+        "download",
+        url.as_str(),
+        socks_addr.as_str(),
+        socks_cat.as_str(),
+        res.is_ok(),
+    )?;
+    res.with_context(|| {
+        format!("download error, proxy {} ({}): ", socks_addr, socks_cat)
+    })?;
+
+    let res = spawn_blocking(move || download_id.parse_respose(&path)).await?;
+    proxy_stat_increment(
+        "parse",
+        url.as_str(),
+        socks_addr.as_str(),
+        socks_cat.as_str(),
+        res.is_ok(),
+    )?;
+    Ok((
+        res.with_context(|| {
+            format!("validation error, proxy {} ({}): ", socks_addr, socks_cat)
+        })?,
+        path2,
+    ))
+}
+
+async fn download_in_parallel<T: DownloadId + 'static>(
+    download_id: &T,
+) -> anyhow::Result<T::TParseResult> {
+    use futures::stream::{FuturesUnordered, StreamExt};
     let mut parallel_tasks = FuturesUnordered::new();
-
-    for (i, ((socks_addr, socks_cat), temp)) in
-        all_socks.iter().zip(all_temps).enumerate()
+    for (i, socks_addr, socks_cat, temp) in
+        setup_proxy_and_temp(&download_id.get_random_url()?).await?
     {
         let temp_path = temp.file_path().clone();
-        let url = url.to_owned();
-        let initial_delay = Duration::from_millis(1000 * i);
-
-        let task = tokio::task::spawn(async move || {
-            tokio::time::sleep(initial_delay).await;
-
-            download_once::<T>(
-                url.clone(),
-                temp_path,
-                parser.clone(),
-                socks_addr.clone(),
-                socks_cat.clone(),
-            )
-        });
+        let initial_delay = Duration::from_millis(50 + 1050 * i as u64);
+        let download_id2 = download_id.clone();
+        let task = tokio::task::spawn(download_once_2(
+            download_id2,
+            temp_path,
+            socks_addr.clone(),
+            socks_cat.clone(),
+            initial_delay,
+        ));
         parallel_tasks.push(task);
 
         tokio::time::sleep(Duration::from_millis(1)).await;
@@ -527,9 +693,80 @@ where
         // kill all the next results
         parallel_tasks.iter().for_each(|f| f.abort());
 
-        tokio::fs::rename(good_path, path).await?;
+        let final_path = download_id.get_final_path()?;
+        let final_parent = final_path.parent().expect("final path has no parent");
+        tokio::fs::create_dir_all(&final_parent).await?;
+        tokio::fs::rename(good_path, &final_path).await?;
         return Ok(check_result);
     }
 
-    anyhow::bail!("err: cannot download. see below: \n\n {:?}", _errors);
+    anyhow::bail!("err: cannot download. see below: \n {:#?}", _errors);
+}
+
+pub async fn download2<T: DownloadId + 'static>(
+    download_id: &T,
+) -> anyhow::Result<T::TParseResult> {
+    if download_id.is_valid_request().is_err() {
+        anyhow::bail!("request invalid: {:?}", download_id);
+    }
+    let db_tree = get_db_tree(download_id);
+    // if db entry exists, just return that, be it error or success.
+    {
+        if let Some(existing_entry) = db_tree.get(download_id)? {
+            if let Some(existing_result) = existing_entry.parse_result {
+                return Ok(existing_result);
+            } else {
+                anyhow::bail!(
+                    "download failed (pre-existing error): {}",
+                    existing_entry.error_txt
+                )
+            }
+        }
+    }
+    // if path exists, check it, if failed delete it.
+    // path.exists() is sync, so do stat instead
+    {
+        let path = download_id.get_final_path()?;
+        if tokio::fs::metadata(&path).await.is_ok() {
+            let path = path.clone();
+            let path2 = path.clone();
+            let download_id2 = download_id.clone();
+            {
+                if let Ok(result) =
+                    spawn_blocking(move || download_id2.parse_respose(&path)).await?
+                {
+                    // write result to db
+                    let db_value = DownloadEntry::<T::TParseResult> {
+                        parse_result: Some(result),
+                        error_txt: "".to_string(),
+                    };
+                    db_tree.insert(download_id, &db_value)?;
+                    return Ok(db_value.parse_result.unwrap());
+                } else {
+                    eprintln!(
+                        "DELETING existing file that failed verification: {:?}",
+                        path2.to_str()
+                    );
+                    tokio::fs::remove_file(path2).await?;
+                }
+            }
+        }
+    }
+
+    let parsed = download_in_parallel(download_id).await;
+    let db_entry = match parsed {
+        Ok(res) => DownloadEntry::<T::TParseResult> {
+            parse_result: Some(res),
+            error_txt: "".to_string(),
+        },
+        Err(err) => DownloadEntry::<T::TParseResult> {
+            parse_result: None,
+            error_txt: err.to_string(),
+        },
+    };
+    db_tree.insert(&download_id, &db_entry)?;
+
+    Ok(db_entry
+        .parse_result
+        .with_context(|| format!("failed to download: {:#?}", db_entry.error_txt))?)
 }
