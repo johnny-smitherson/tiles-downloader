@@ -2,5 +2,10 @@
     "rust-analyzer.linkedProjects": [
         ".\\osm_tile_downloader\\Cargo.toml",
         ".\\crooked_earth\\Cargo.toml"
-    ]
+    ],
+    "rust-analyzer.cargo.extraEnv": {
+       "CARGO_HTTP_CHECK_REVOKE": "false",
+       "OPENSSL_DIR": "D://Program Files/OpenSSL-Win64",
+       "OPENSSL_LIB_DIR": "D://Program Files/OpenSSL-Win64/lib/VC/x64/MD",
+    }
 }
