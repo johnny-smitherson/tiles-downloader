@@ -1,4 +1,5 @@
 pub(crate) mod config;
+pub(crate) mod download_geosearch;
 pub(crate) mod download_tile;
 pub(crate) mod fetch;
 pub(crate) mod geo_trig;
@@ -87,7 +88,8 @@ async fn favicon() -> Option<NamedFile> {
 
 #[get("/api/geo/<q_location>/json")]
 async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
-    let geojson_path = download_tile::search_geojson_to_disk(q_location).await?;
+    let geojson_path =
+        download_geosearch::search_geojson_to_disk(q_location).await?;
 
     Ok(NamedFile::open(&geojson_path)
         .await
@@ -96,7 +98,7 @@ async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
 
 #[get("/geo/<q_location>")]
 async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
-    let geo_search_results = download_tile::search_geojson(q_location).await?;
+    let geo_search_results = download_geosearch::search_geojson(q_location).await?;
     if geo_search_results.is_empty() {
         return Err(anyhow!(
             "no features found after searching for '{}'",

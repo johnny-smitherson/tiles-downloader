@@ -507,8 +507,7 @@ pub async fn download_once_2<T: DownloadId>(
     socks_addr: String,
     socks_cat: String,
     initial_delay: Duration,
-) -> anyhow::Result<(T::TParseResult, PathBuf)>
-{
+) -> anyhow::Result<(T::TParseResult, PathBuf)> {
     tokio::time::sleep(initial_delay).await;
     let url = download_id.get_random_url()?;
     let path2 = path.clone();
