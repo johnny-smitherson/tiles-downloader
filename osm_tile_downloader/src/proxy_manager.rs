@@ -401,6 +401,7 @@ fn proxy_stat_increment(
 
 use std::path::PathBuf;
 
+#[allow(clippy::needless_range_loop)]
 async fn setup_proxy_and_temp(
     url: &str,
 ) -> Result<Vec<(usize, String, String, async_tempfile::TempFile)>> {
@@ -507,8 +508,6 @@ pub async fn download_once_2<T: DownloadId>(
     socks_cat: String,
     initial_delay: Duration,
 ) -> anyhow::Result<(T::TParseResult, PathBuf)>
-where
-    T: std::marker::Send + 'static,
 {
     tokio::time::sleep(initial_delay).await;
     let url = download_id.get_random_url()?;

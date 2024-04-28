@@ -41,10 +41,10 @@ pub struct StatCounterVal {
 const STAT_COUNTER_ENTRY_TTL: f64 = 3600.0;
 
 impl StatCounterVal {
-    fn increment(&mut self, event: &String) {
+    fn increment(&mut self, event: &str) {
         self.event_count.insert(
-            event.clone(),
-            self.event_count.get(&event.clone()).unwrap_or(&0) + 1,
+            event.to_owned(),
+            self.event_count.get(&event.to_owned()).unwrap_or(&0) + 1,
         );
         self.edit_at = get_current_timestamp();
     }
