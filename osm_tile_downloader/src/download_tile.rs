@@ -33,7 +33,7 @@ impl TileFetchId {
 
 impl DownloadId for TileFetchId {
     type TParseResult = ();
-    fn get_version(&self) -> usize {
+    fn get_version() -> usize {
         0
     }
 
@@ -181,18 +181,18 @@ struct OSMGeolocationSearchQuery {
     Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
 )]
 pub struct GeoPoint {
-    pub point_0: f64,
-    pub point_1: f64,
+    pub x_lon: f64,
+    pub y_lat: f64,
 }
 
 #[derive(
     Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
 )]
 pub struct GeoBBOX {
-    pub bbox_0: f64,
-    pub bbox_1: f64,
-    pub bbox_2: f64,
-    pub bbox_3: f64,
+    pub x_min: f64,
+    pub y_min: f64,
+    pub x_max: f64,
+    pub y_max: f64,
 }
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
@@ -204,7 +204,7 @@ pub struct OSMGeolocationSearchResult {
 
 impl DownloadId for OSMGeolocationSearchQuery {
     type TParseResult = Vec<OSMGeolocationSearchResult>;
-    fn get_version(&self) -> usize {
+    fn get_version() -> usize {
         return 0;
     }
     fn is_valid_request(&self) -> Result<()> {
@@ -253,16 +253,16 @@ impl DownloadId for OSMGeolocationSearchQuery {
                 }
             };
             let geo_point = GeoPoint {
-                point_0: geo_point.0,
-                point_1: geo_point.1,
+                x_lon: geo_point.0,
+                y_lat: geo_point.1,
             };
 
             let bbox = feature.bbox.clone().context("no bbox")?;
             let bbox = GeoBBOX {
-                bbox_0: bbox[0],
-                bbox_1: bbox[1],
-                bbox_2: bbox[2],
-                bbox_3: bbox[3],
+                x_min: bbox[0],
+                y_min: bbox[1],
+                x_max: bbox[2],
+                y_max: bbox[3],
             };
 
             let display_name = feature
@@ -329,7 +329,7 @@ pub async fn draw_overlay_on_tile(
         _ => anyhow::bail!("bad format: {}", img_type),
     };
     let b_px = overlay_coordinates.point.context("no point coord!")?;
-    let b_px = crate::geo_trig::tile_index_float(z, b_px.point_0, b_px.point_1);
+    let b_px = crate::geo_trig::tile_index_float(z, b_px.x_lon, b_px.y_lat);
 
     let tile2pixel = |point: (f64, f64)| {
         (
@@ -340,8 +340,8 @@ pub async fn draw_overlay_on_tile(
     let b_px = tile2pixel(b_px);
 
     let b_bbox = overlay_coordinates.bbox.context("no bbox")?;
-    let bbox0 = crate::geo_trig::tile_index_float(z, b_bbox.bbox_0, b_bbox.bbox_1);
-    let bbox1 = crate::geo_trig::tile_index_float(z, b_bbox.bbox_2, b_bbox.bbox_3);
+    let bbox0 = crate::geo_trig::tile_index_float(z, b_bbox.x_min, b_bbox.y_min);
+    let bbox1 = crate::geo_trig::tile_index_float(z, b_bbox.x_max, b_bbox.y_max);
     let bbox0 = tile2pixel(bbox0);
     let bbox1 = tile2pixel(bbox1);
     let b_bbox = [bbox0, bbox1, (bbox1.0, bbox0.1), (bbox0.0, bbox1.1)];

@@ -54,24 +54,25 @@ async fn proxy_info() -> rocket_anyhow::Result<Template> {
     ))
 }
 
-use rocket::form::Form;
+// use rocket::form::Form;
 
-#[derive(FromForm)]
-struct GeoDuckReplRequest {
-    sql_query: String,
-}
+// #[derive(FromForm)]
+// struct GeoDuckReplRequest {
+//     sql_query: String,
+// }
 
-#[post("/api/geoduck/repl", data = "<form>")]
-async fn geoduck_repl_api(
-    form: Form<GeoDuckReplRequest>,
-) -> rocket_anyhow::Result<String> {
-    Ok(overt_geoduck::geoduck_execute_to_str(&form.sql_query).await?)
-}
+// #[post("/api/geoduck/repl", data = "<form>")]
+// async fn geoduck_repl_api(
+//     form: Form<GeoDuckReplRequest>,
+// ) -> rocket_anyhow::Result<String> {
 
-#[get("/geoduck/repl")]
-fn geoduck_repl() -> rocket_anyhow::Result<Template> {
-    Ok(Template::render("geoduck", context! {}))
-}
+//     Ok(overt_geoduck::geoduck_execute_to_str(&form.sql_query).await?)
+// }
+
+// #[get("/geoduck/repl")]
+// fn geoduck_repl() -> rocket_anyhow::Result<Template> {
+//     Ok(Template::render("geoduck", context! {}))
+// }
 
 #[get("/health_check")]
 fn health_check() -> String {
@@ -119,8 +120,8 @@ async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
                 .map(|z| {
                     let (x, y) = geo_trig::tile_index(
                         z,
-                        feature.geo_point.point_0,
-                        feature.geo_point.point_1,
+                        feature.geo_point.x_lon,
+                        feature.geo_point.y_lat,
                     );
                     let server_name = srv.name.clone();
                     let ext = srv.img_type.clone();
@@ -154,8 +155,9 @@ async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
         "geo_location",
         context! {
             tileserver_with_links: tile_servers,
-            geo_point: feature.geo_point,
-            display_name: feature.display_name,
+            feature: feature.clone(),
+            feature_point: format!("{:?}", feature.geo_point),
+            feature_bbox: format!("{:?}", feature.bbox),
             q_location: q_location,
         },
     ))
@@ -190,7 +192,6 @@ use rocket::http::ContentType;
 use rocket::response::Responder;
 use rocket::Response;
 use std::io::Cursor;
-use tokio::task::spawn_blocking;
 
 pub struct ImageResponse {
     img_bytes: Vec<u8>,
@@ -266,8 +267,8 @@ async fn main() -> rocket_anyhow::Result<()> {
                 geo_search_json,
                 geo_index,
                 proxy_info,
-                geoduck_repl,
-                geoduck_repl_api,
+                // geoduck_repl,
+                // geoduck_repl_api,
             ],
         )
         .attach(Template::fairing())

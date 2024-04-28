@@ -140,7 +140,11 @@ use typed_sled::Event;
 //     Ok(())
 // }
 
-pub async fn fetch(url: &str, path: &Path, socks5_proxy: &str) -> Result<()> {
+pub async fn fetch_with_socks5(
+    url: &str,
+    path: &Path,
+    socks5_proxy: &str,
+) -> Result<()> {
     use rand::seq::SliceRandom;
     let user_agent = LINKS_CONFIG
         .user_agents

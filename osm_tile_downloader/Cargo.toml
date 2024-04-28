@@ -48,8 +48,7 @@ image = "0.25.1"
 
 
 # local  -----------------------------------------------------------------------------
-overt_geoduck = { path = "../overt_geoduck", version = "0.1.0" }
-
+overt_geoduck = { path = "../overt_geoduck" }
 
 
 [profile.dev]

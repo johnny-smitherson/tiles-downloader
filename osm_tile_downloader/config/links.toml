@@ -14,7 +14,7 @@ user_agents = [
 ]
 tor_addr_list = ["127.0.0.1:9050"]
 proxy_fetch_parallel = 100
-timeout_secs = 10
+timeout_secs = 15
 retries = 7
 db_location = "./data.sled"
 tile_location = "./data.tiles"

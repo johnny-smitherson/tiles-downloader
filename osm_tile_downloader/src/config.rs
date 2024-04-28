@@ -264,15 +264,22 @@ pub fn get_all_socks5_scrapers() -> anyhow::Result<Vec<Socks5ProxyScraperConfig>
     Ok(servers)
 }
 
-pub async fn tempfile() -> anyhow::Result<async_tempfile::TempFile> {
-    let tmp_parent = LINKS_CONFIG.tile_location.join("tmp");
+pub fn tmpdir() -> PathBuf {
+    LINKS_CONFIG.tile_location.join("tmp")
+}
+
+pub async fn tempfile(name: &str) -> anyhow::Result<async_tempfile::TempFile> {
+    let tmp_parent = tmpdir();
     tokio::fs::create_dir_all(&tmp_parent).await?;
-    let temp_file = async_tempfile::TempFile::new_in(tmp_parent).await?;
+    use rand::Rng;
+    let rand_name = format!("tmp.{}.{}", rand::thread_rng().gen::<u128>(), name);
+    let temp_file =
+        async_tempfile::TempFile::new_with_name_in(rand_name, tmp_parent).await?;
     Ok(temp_file)
 }
 
 pub async fn clear_tempfiles() -> anyhow::Result<()> {
-    let tmp_parent = LINKS_CONFIG.tile_location.join("tmp");
+    let tmp_parent = tmpdir();
     tokio::fs::remove_dir_all(&tmp_parent).await?;
     tokio::fs::create_dir_all(&tmp_parent).await?;
     Ok(())
