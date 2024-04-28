@@ -7,7 +7,7 @@ edition = "2021"
 
 [lib]
 name = "overt_geoduck"
-crate_type = ["cdylib"]
+crate_type = ["cdylib", "lib"]
 
 [dependencies]
 anyhow = "1.0.82"
@@ -16,9 +16,3 @@ serde_json = "1.0.115"
 geojson = "0.24.1"
 strfmt = "0.2.4"
 duckdb = {version="0.10.1", features = ["bundled", "httpfs", "json", "parquet"] }
-
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3

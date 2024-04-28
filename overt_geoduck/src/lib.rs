@@ -1,10 +1,10 @@
 use anyhow::Context;
-use duckdb::arrow::record_batch::RecordBatch;
-use duckdb::arrow::util::pretty::pretty_format_batches;
+// use duckdb::arrow::record_batch::RecordBatch;
+// use duckdb::arrow::util::pretty::pretty_format_batches;
 use duckdb::Connection;
 use std::collections::HashMap;
 use std::path::Path;
-use std::path::PathBuf;
+// use std::path::PathBuf;
 
 const OVERT_LOCATION: &str = "s3://overturemaps-us-west-2/release";
 const OVERT_VERSION: &str = "2024-04-16-beta.0";
