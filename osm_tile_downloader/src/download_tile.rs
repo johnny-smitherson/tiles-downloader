@@ -115,9 +115,8 @@ impl DownloadId for TileFetchId {
             xyz_to_bing_quadkey(self.x, self.y, self.z),
         );
 
-        let url =
-            strfmt::strfmt(&server_config.url, &map).context("failed strfmt on URL");
-        Ok(url?)
+        
+        strfmt::strfmt(&server_config.url, &map).context("failed strfmt on URL")
     }
 
     fn parse_respose(&self, tmp_file: &Path) -> Result<Self::TParseResult> {
@@ -171,7 +170,7 @@ pub async fn get_tile(
         extension: extension.to_owned(),
     };
     proxy_manager::download2(&fetch_info).await?;
-    Ok(fetch_info.get_final_path()?)
+    fetch_info.get_final_path()
 }
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
@@ -251,7 +250,7 @@ impl DownloadId for OSMGeolocationSearchQuery {
                 if let geojson::Value::Point(coords) = geo_point {
                     (coords[0], coords[1])
                 } else {
-                    return Err(anyhow::anyhow!("geometry was not point - ").into());
+                    return Err(anyhow::anyhow!("geometry was not point - "));
                 }
             };
             let geo_point = GeoPoint {
@@ -290,7 +289,7 @@ pub async fn search_geojson_to_disk(query_str: &str) -> Result<std::path::PathBu
         query_str: query_str.to_string(),
     };
     download2(&download_id).await?;
-    Ok(download_id.get_final_path()?)
+    download_id.get_final_path()
 }
 
 pub async fn search_geojson(

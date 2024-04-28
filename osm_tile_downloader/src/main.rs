@@ -126,8 +126,8 @@ async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
                     let server_name = srv.name.clone();
                     let ext = srv.img_type.clone();
                     let overlay = crate::download_tile::OverlayDrawCoordinates {
-                        point: Some(feature.geo_point.clone()),
-                        bbox: Some(feature.bbox.clone()),
+                        point: Some(feature.geo_point),
+                        bbox: Some(feature.bbox),
                     };
                     let the_uri = uri!(get_tile_with_overlay(
                         server_name = server_name,

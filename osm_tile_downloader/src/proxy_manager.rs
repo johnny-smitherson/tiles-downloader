@@ -650,12 +650,11 @@ async fn download_loop<T: DownloadId>() {
             // GET all pending but not started
             let pending_keys: Vec<_> = pending_tree
                 .iter()
-                .filter(|x| x.is_ok())
-                .map(|x| x.unwrap())
-                .filter(|x| x.1 == false)
+                .flatten()
+                .filter(|x| !x.1)
                 .map(|x| x.0)
                 .collect();
-            if pending_keys.len() > 0 {
+            if !pending_keys.is_empty() {
                 batch_id += 1;
                 use futures::stream::{FuturesUnordered, StreamExt};
                 let parallel_tasks = FuturesUnordered::new();
@@ -785,17 +784,17 @@ pub async fn download2<T: DownloadId + 'static>(
     // save request for the download loop
     {
         let pending_tree = get_db_pending_tree::<T>();
-        pending_tree.insert(&download_id, &false)?;
+        pending_tree.insert(download_id, &false)?;
     }
 
     // if we don't have any old record, write one now
-    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(&download_id)? {
+    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(download_id)? {
         (old.error_txt, old.fail_count)
     } else {
         ("".to_string(), 0)
     };
     final_tree.insert(
-        &download_id,
+        download_id,
         &DownloadEntry::<T::TParseResult> {
             parse_result: None,
             error_txt: format!(
@@ -815,7 +814,7 @@ async fn do_download<T: DownloadId + 'static>(
 ) -> anyhow::Result<T::TParseResult> {
     let download_id = &download_id;
     let final_tree = get_db_final_tree::<T>();
-    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(&download_id)? {
+    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(download_id)? {
         (old.error_txt, old.fail_count)
     } else {
         ("".to_string(), 0)
@@ -843,13 +842,13 @@ async fn do_download<T: DownloadId + 'static>(
             error_txt: format!(
                 "download attempt #{} failed: {}\n{}",
                 old_fail_cnt + 1,
-                err.to_string(),
+                err,
                 old_err
             ),
             fail_count: old_fail_cnt + 1,
         },
     };
-    final_tree.insert(&download_id, &db_entry)?;
+    final_tree.insert(download_id, &db_entry)?;
 
     // delete from pending tree OR set as not running
     {
@@ -857,21 +856,21 @@ async fn do_download<T: DownloadId + 'static>(
         if db_entry.parse_result.is_some()
             || db_entry.fail_count >= T::get_retry_count()
         {
-            if pending_tree.get(&download_id).is_ok_and(|t| t.is_some()) {
-                let _ = pending_tree.remove(&download_id);
+            if pending_tree.get(download_id).is_ok_and(|t| t.is_some()) {
+                let _ = pending_tree.remove(download_id);
             }
         } else {
             tokio::time::sleep(Duration::from_secs(15 * db_entry.fail_count as u64))
                 .await;
-            pending_tree.insert(&download_id, &false)?;
+            pending_tree.insert(download_id, &false)?;
         }
     }
 
-    Ok(db_entry.parse_result.with_context(|| {
+    db_entry.parse_result.with_context(|| {
         format!(
             "{}: failed to download: {}",
             type_name::<T>(),
             db_entry.error_txt
         )
-    })?)
+    })
 }
