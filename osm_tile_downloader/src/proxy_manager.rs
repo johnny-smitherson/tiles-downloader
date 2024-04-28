@@ -3,6 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::config::{self, *};
+use crate::fetch;
 use anyhow::Context;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -54,7 +55,7 @@ async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
         .tor_addr_list
         .choose(&mut rand::thread_rng())
         .context("no socks proxy")?;
-    crate::fetch::fetch_with_socks5(url, path, socks5_proxy).await
+    fetch::fetch_with_socks5(url, path, socks5_proxy).await
 }
 
 async fn download_socks5_proxy_list(
@@ -201,7 +202,7 @@ async fn refresh_all_socks5_proxy_lists() -> anyhow::Result<()> {
 
 async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()> {
     let temp_file = tempfile("download.icanhazip.txt").await?;
-    crate::fetch::fetch_with_socks5(
+    fetch::fetch_with_socks5(
         "http://icanhazip.com/",
         temp_file.file_path(),
         &proxy.addr,
@@ -364,7 +365,7 @@ fn proxy_stat_increment(
     let url_parsed = url::Url::parse(url)?;
     let url_domain = url_parsed.domain().context("url has no domain??")?;
     let stat_type = format!("proxy_{}_socksaddr_targetdomain", _type);
-    crate::config::stat_counter_increment(
+    config::stat_counter_increment(
         &stat_type,
         if success { "success" } else { "fail" },
         proxy_addr,
@@ -372,7 +373,7 @@ fn proxy_stat_increment(
     )?;
 
     let stat_type = format!("proxy_{}_sockscateg_targetdomain", _type);
-    crate::config::stat_counter_increment(
+    config::stat_counter_increment(
         &stat_type,
         if success { "success" } else { "fail" },
         proxy_cat,
@@ -417,7 +418,7 @@ async fn setup_proxy_and_temp(
     all_socks.push((tor_addr.clone(), "tor".to_owned()));
     let mut all_temps = vec![];
     for _ in 0..all_socks.len() {
-        all_temps.push(crate::config::tempfile("download.parallel.temp").await?);
+        all_temps.push(config::tempfile("download.parallel.temp").await?);
     }
 
     let mut _vec = vec![];
@@ -499,7 +500,7 @@ fn get_db_pending_tree<T: DownloadId>() -> typed_sled::Tree<T, bool> {
     typed_sled::Tree::<_, _>::open(&SLED_DB, table_name.as_str())
 }
 
-pub async fn download_once_2<T: DownloadId + 'static>(
+pub async fn download_once_2<T: DownloadId>(
     download_id: T,
     path: PathBuf,
     socks_addr: String,
@@ -512,8 +513,7 @@ where
     tokio::time::sleep(initial_delay).await;
     let url = download_id.get_random_url()?;
     let path2 = path.clone();
-    let res =
-        crate::fetch::fetch_with_socks5(url.as_str(), &path, &socks_addr).await;
+    let res = fetch::fetch_with_socks5(url.as_str(), &path, &socks_addr).await;
     proxy_stat_increment(
         "download",
         url.as_str(),
@@ -621,7 +621,7 @@ async fn download_in_parallel<T: DownloadId + 'static>(
     anyhow::bail!("err: cannot download. see below: \n {:#?}", _errors);
 }
 
-async fn download_loop<T: DownloadId>() -> () {
+async fn download_loop<T: DownloadId>() {
     eprintln!("{}: STARTING DOWNLOAD LOOP", type_name::<T>());
     // RESET all pending to not running
     {
@@ -709,7 +709,7 @@ lazy_static::lazy_static! {
     pub static ref DOWNLOAD_LOOP_MAP:  RwLock<HashMap<String, JoinHandle<()>>> = RwLock::new(HashMap::<String, JoinHandle<()>>::new());
 }
 
-async fn ensure_spawned_download_loop<T: DownloadId>() -> () {
+async fn ensure_spawned_download_loop<T: DownloadId>() {
     let name = format!(
         "download-loop-{}-{}",
         type_name::<T>(),

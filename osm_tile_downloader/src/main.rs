@@ -19,6 +19,7 @@ use rocket_dyn_templates::Template;
 use config::init_database;
 use config::TileServerConfig;
 use config::LINKS_CONFIG;
+use download_tile::OverlayDrawCoordinates;
 
 #[get("/")]
 fn index() -> rocket_anyhow::Result<Template> {
@@ -47,8 +48,8 @@ async fn proxy_info() -> rocket_anyhow::Result<Template> {
             // fetch_queue_ready: crate::fetch::fetch_queue_ready()?,
             // fetch_queue_done: crate::fetch::fetch_queue_done()?,
             scrapers: scrapers,
-            all_working_proxies: crate::proxy_manager::get_all_working_proxies(),
-            all_broken_proxies: crate::proxy_manager::get_all_broken_proxies(),
+            all_working_proxies: proxy_manager::get_all_working_proxies(),
+            all_broken_proxies: proxy_manager::get_all_broken_proxies(),
             stat_counters: config::stat_counter_get_all(),
         },
     ))
@@ -86,8 +87,7 @@ async fn favicon() -> Option<NamedFile> {
 
 #[get("/api/geo/<q_location>/json")]
 async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
-    let geojson_path =
-        crate::download_tile::search_geojson_to_disk(q_location).await?;
+    let geojson_path = download_tile::search_geojson_to_disk(q_location).await?;
 
     Ok(NamedFile::open(&geojson_path)
         .await
@@ -180,8 +180,7 @@ async fn get_tile(
     if !extension.eq("png") && !extension.eq("jpg") {
         return Ok(None);
     }
-    let path =
-        crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
+    let path = download_tile::get_tile(server_name, x, y, z, extension).await?;
 
     Ok(Some(NamedFile::open(&path).await.with_context(|| {
         format!("file missing from disk: {:?}", &path)
@@ -218,10 +217,9 @@ async fn get_tile_with_overlay(
     y: u64,
     z: u8,
     extension: &str,
-    overlay_coordinates: crate::download_tile::OverlayDrawCoordinates,
+    overlay_coordinates: OverlayDrawCoordinates,
 ) -> rocket_anyhow::Result<ImageResponse> {
-    let path =
-        crate::download_tile::get_tile(server_name, x, y, z, extension).await?;
+    let path = download_tile::get_tile(server_name, x, y, z, extension).await?;
     let server_config = config::get_tile_server(server_name)?;
     let img_type = server_config.img_type.clone();
     assert!(img_type.eq(extension));

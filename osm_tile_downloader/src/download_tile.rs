@@ -12,7 +12,10 @@ use geojson::FeatureCollection;
 
 use crate::config;
 use crate::config::{TileServerConfig, LINKS_CONFIG};
+use crate::geo_trig::tile_index_float;
+use crate::geo_trig::xyz_to_bing_quadkey;
 use crate::proxy_manager;
+use crate::proxy_manager::download2;
 use crate::proxy_manager::DownloadId;
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
@@ -109,7 +112,7 @@ impl DownloadId for TileFetchId {
         map.insert("z".to_owned(), self.z.to_string());
         map.insert(
             "bing_quadkey".to_owned(),
-            crate::geo_trig::xyz_to_bing_quadkey(self.x, self.y, self.z),
+            xyz_to_bing_quadkey(self.x, self.y, self.z),
         );
 
         let url =
@@ -204,7 +207,7 @@ pub struct OSMGeolocationSearchResult {
 impl DownloadId for OSMGeolocationSearchQuery {
     type TParseResult = Vec<OSMGeolocationSearchResult>;
     fn get_version() -> usize {
-        return 0;
+        0
     }
     fn is_valid_request(&self) -> Result<()> {
         if self.query_str.len() >= 2 && self.query_str.len() <= 128 {
@@ -286,7 +289,7 @@ pub async fn search_geojson_to_disk(query_str: &str) -> Result<std::path::PathBu
     let download_id = OSMGeolocationSearchQuery {
         query_str: query_str.to_string(),
     };
-    crate::proxy_manager::download2(&download_id).await?;
+    download2(&download_id).await?;
     Ok(download_id.get_final_path()?)
 }
 
@@ -296,7 +299,7 @@ pub async fn search_geojson(
     let download_id = OSMGeolocationSearchQuery {
         query_str: query_str.to_string(),
     };
-    let res = crate::proxy_manager::download2(&download_id).await?;
+    let res = download2(&download_id).await?;
     Ok(res)
 }
 use tokio::task::spawn_blocking;
@@ -328,7 +331,7 @@ pub async fn draw_overlay_on_tile(
         _ => anyhow::bail!("bad format: {}", img_type),
     };
     let b_px = overlay_coordinates.point.context("no point coord!")?;
-    let b_px = crate::geo_trig::tile_index_float(z, b_px.x_lon, b_px.y_lat);
+    let b_px = tile_index_float(z, b_px.x_lon, b_px.y_lat);
 
     let tile2pixel = |point: (f64, f64)| {
         (
@@ -339,8 +342,8 @@ pub async fn draw_overlay_on_tile(
     let b_px = tile2pixel(b_px);
 
     let b_bbox = overlay_coordinates.bbox.context("no bbox")?;
-    let bbox0 = crate::geo_trig::tile_index_float(z, b_bbox.x_min, b_bbox.y_min);
-    let bbox1 = crate::geo_trig::tile_index_float(z, b_bbox.x_max, b_bbox.y_max);
+    let bbox0 = tile_index_float(z, b_bbox.x_min, b_bbox.y_min);
+    let bbox1 = tile_index_float(z, b_bbox.x_max, b_bbox.y_max);
     let bbox0 = tile2pixel(bbox0);
     let bbox1 = tile2pixel(bbox1);
     let b_bbox = [bbox0, bbox1, (bbox1.0, bbox0.1), (bbox0.0, bbox1.1)];
