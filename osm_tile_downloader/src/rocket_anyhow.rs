@@ -42,6 +42,7 @@ impl<'r> Responder<'r, 'static> for Error {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! bail {
     ($msg:literal $(,)?) => {
         return Err(rocket_anyhow::Error(anyhow::anyhow!($msg)))
