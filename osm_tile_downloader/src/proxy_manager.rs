@@ -638,10 +638,14 @@ async fn download_loop<T: DownloadId>() -> () {
         for k in pending_keys.iter() {
             let _ = pending_tree.insert(k, &false);
         }
-        
-        eprintln!("{}: FOUND {} OLD REQUESTS", type_name::<T>(), pending_keys.len());
+
+        eprintln!(
+            "{}: FOUND {} OLD REQUESTS",
+            type_name::<T>(),
+            pending_keys.len()
+        );
     }
-    let mut batch_id : u64 = 0;
+    let mut batch_id: u64 = 0;
     loop {
         {
             let pending_tree = get_db_pending_tree::<T>();
@@ -658,7 +662,7 @@ async fn download_loop<T: DownloadId>() -> () {
                 batch_id += 1;
                 use futures::stream::{FuturesUnordered, StreamExt};
                 let parallel_tasks = FuturesUnordered::new();
-    
+
                 // set as started and spawn the downloader
                 for k in pending_keys.iter() {
                     let _ = pending_tree.insert(k, &true);
@@ -673,7 +677,7 @@ async fn download_loop<T: DownloadId>() -> () {
                     pending_keys.len()
                 );
                 let _ = pending_tree.flush_async().await;
-    
+
                 tokio::task::spawn(async move {
                     let results: Vec<_> =
                         futures::stream::iter(parallel_tasks).collect().await;
@@ -860,7 +864,8 @@ async fn do_download<T: DownloadId + 'static>(
                 let _ = pending_tree.remove(&download_id);
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(15 * db_entry.fail_count as u64)).await;
+            tokio::time::sleep(Duration::from_secs(15 * db_entry.fail_count as u64))
+                .await;
             pending_tree.insert(&download_id, &false)?;
         }
     }
