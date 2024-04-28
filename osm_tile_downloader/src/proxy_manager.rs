@@ -806,7 +806,7 @@ pub async fn download2<T: DownloadId + 'static>(
         },
     )?;
 
-    anyhow::bail!("just added to pending: {}", old_err);
+    anyhow::bail!("just added to pending, plz wait. {}", old_err);
 }
 
 async fn do_download<T: DownloadId + 'static>(
