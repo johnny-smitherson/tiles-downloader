@@ -5,7 +5,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use anyhow::Context;
-use rand::seq::SliceRandom;
 
 lazy_static::lazy_static! {
     pub static ref LINKS_CONFIG: LinksConfig = load_config().expect("bad config:");

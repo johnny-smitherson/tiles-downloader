@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::config::{self, *};
-use crate::download_tile;
 use anyhow::Context;
 use anyhow::Result;
-use futures::future::pending;
 use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {

@@ -53,7 +53,6 @@ macro_rules! bail {
         return Err(rocket_anyhow::Error(anyhow::anyhow!($fmt, $($arg)*)))
     };
 }
-pub(crate) use bail;
 
 #[derive(Debug)]
 pub struct Debug<E>(pub E);
