@@ -139,7 +139,7 @@ pub async fn download_everything(
     Ok(DownloadEverythingSummary {
         success_count: success_count as u64,
         error_count: fail_count as u64,
-        total_size_mb: total_size_mb,
+        total_size_mb,
         v_geoducks,
         v_tiles,
     })

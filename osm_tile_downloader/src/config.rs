@@ -44,7 +44,7 @@ impl StatCounterVal {
     fn increment(&mut self, event: &str) {
         self.event_count.insert(
             event.to_owned(),
-            self.event_count.get(&event.to_owned()).unwrap_or(&0) + 1,
+            self.event_count.get(event).unwrap_or(&0) + 1,
         );
         self.edit_at = get_current_timestamp();
     }
@@ -64,7 +64,7 @@ pub fn stat_counter_increment(
 
     DB_STAT_COUNTER.update_and_fetch(&hash_key.to_owned(), |v| match v {
         Some(mut stat_counter) => {
-            stat_counter.increment(&stat_event.to_owned());
+            stat_counter.increment(stat_event);
             Some(stat_counter)
         }
         None => {
@@ -72,7 +72,7 @@ pub fn stat_counter_increment(
                 event_count: HashMap::new(),
                 edit_at: get_current_timestamp(),
             };
-            stat_counter.increment(&stat_event.to_owned());
+            stat_counter.increment(stat_event);
             Some(stat_counter)
         }
     })?;

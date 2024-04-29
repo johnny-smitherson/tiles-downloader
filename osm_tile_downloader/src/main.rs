@@ -1,3 +1,6 @@
+#[allow(clippy::assigning_clones)]
+#[allow(clippy::needless_borrows_for_generic_args)]
+
 pub(crate) mod config;
 pub(crate) mod download_everything;
 pub(crate) mod download_geoduck;

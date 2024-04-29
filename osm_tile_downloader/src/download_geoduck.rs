@@ -112,7 +112,7 @@ impl DownloadId for OvertureMapsSegment {
     ) -> impl std::future::Future<Output = Result<Self::TParseResult>> + std::marker::Send
     {
         let tmp_file =
-            std::path::PathBuf::from(tmp_file.to_str().unwrap().replace("\\", "/"));
+            std::path::PathBuf::from(tmp_file.to_str().unwrap().replace('\\', "/"));
         let tmp_file2 = std::path::PathBuf::from(&tmp_file);
         let tmp_file3 = std::path::PathBuf::from(&tmp_file);
         let bbox = geo_bbox(self.x, self.y, self.z).expand_relative(0.52);
