@@ -4,35 +4,28 @@
 <pre> {{feature_bbox }}</pre>
 
 <table style="flex-direction:row">
-  
-
 {{#each tileserver_with_links}}
-
 <tr style="width:fit-content;">
 
   <td>
-
-  <h1>{{this.srv.name}}</h1>
-  <p>     max level {{this.srv.max_level}}</p> 
+    <h1>{{this.srv.name}}</h1>
+    <p>     max level {{this.srv.max_level}}</p> 
   </td>
   {{#each this.links}}
   <td  style="width:fit-content">
-
-   
     <img 
-    src="{{this.3}}"
-     height="256" 
-     width="256"
-   ></img>
-  <b><pre> Z = {{this.0}} X = {{this.1}} Y = {{this.2}}</pre></b>
-
+      src="{{this.3}}"
+      height="256" 
+      width="256"
+    ></img>
+    <b><pre> Z = {{this.0}} X = {{this.1}} Y = {{this.2}}</pre></b>
   </td>
   {{/each}}
-   
-   
-</div>
-
+</tr>
 {{/each}}
+</table>
 
-
+<div>
+  <h1>Download Everything: reference</h1>
+  <pre>{{txt_download_everything}}</pre>
 </div>

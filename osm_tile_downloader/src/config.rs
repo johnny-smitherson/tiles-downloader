@@ -281,6 +281,8 @@ pub async fn clear_tempfiles() -> anyhow::Result<()> {
     let tmp_parent = tmpdir();
     tokio::fs::remove_dir_all(&tmp_parent).await?;
     tokio::fs::create_dir_all(&tmp_parent).await?;
+    tokio::fs::remove_dir_all(".tmp").await?;
+    tokio::fs::create_dir_all(".tmp").await?;
     Ok(())
 }
 

@@ -30,6 +30,9 @@ impl DownloadId for OSMGeolocationSearchQuery {
     fn get_version() -> usize {
         0
     }
+    fn get_max_parallel() -> i64 {
+        16
+    }
     fn is_valid_request(&self) -> Result<()> {
         if self.query_str.len() >= 2 && self.query_str.len() <= 128 {
             return Ok(());

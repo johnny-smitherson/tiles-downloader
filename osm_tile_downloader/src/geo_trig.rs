@@ -1,16 +1,4 @@
-use anyhow::Result;
-use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
-
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
-
-use geojson::FeatureCollection;
-
-use crate::config::LINKS_CONFIG;
-use crate::proxy_manager::download2;
-use crate::proxy_manager::DownloadId;
 
 #[derive(
     Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
@@ -28,6 +16,20 @@ pub struct GeoBBOX {
     pub y_min: f64,
     pub x_max: f64,
     pub y_max: f64,
+}
+
+impl GeoBBOX {
+    pub fn expand_relative(&self, q: f64) -> Self {
+        let dx = self.x_max - self.x_min;
+        let dy = self.y_max - self.y_min;
+        assert!(dx > 0.0 && dy > 0.0, "malformed bbox");
+        Self {
+            x_min: self.x_min - dx,
+            x_max: self.x_max + dx,
+            y_min: self.y_min - dy,
+            y_max: self.y_max + dy,
+        }
+    }
 }
 
 pub fn tile_index(zoom: u8, lon_deg: f64, lat_deg: f64) -> (u64, u64) {

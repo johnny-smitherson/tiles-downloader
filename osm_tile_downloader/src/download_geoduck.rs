@@ -5,16 +5,14 @@ use std::path::PathBuf;
 
 use crate::config::LINKS_CONFIG;
 use crate::geo_trig::geo_bbox;
-use crate::geo_trig::{GeoBBOX, GeoPoint};
 use crate::proxy_manager::{download2, DownloadId};
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
     pub static ref OVERT_THEMES: Vec<(String, String)> = overt_geoduck::OVERT_TABLES.iter().filter(|x| !x.1.eq("*")).map(|(x, y)| (x.to_string(), y.to_string())).collect();
 }
-const GEODUCK_ZOOM_LEVEL: u8 = 10;
-const PARQUET_MAX_ZOOM_LEVEL: u8 = 21;
+pub const GEODUCK_ZOOM_LEVEL: u8 = 10;
+pub const PARQUET_MAX_ZOOM_LEVEL: u8 = 16;
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
 struct OvertureMapsSegment {
@@ -34,7 +32,10 @@ pub struct GeoDuckSegmentSummary {
 impl DownloadId for OvertureMapsSegment {
     type TParseResult = GeoDuckSegmentSummary;
     fn get_version() -> usize {
-        2
+        3
+    }
+    fn get_max_parallel() -> i64 {
+        6
     }
     fn parent(&self) -> Option<Self> {
         if self.z <= GEODUCK_ZOOM_LEVEL {
@@ -114,7 +115,7 @@ impl DownloadId for OvertureMapsSegment {
             std::path::PathBuf::from(tmp_file.to_str().unwrap().replace("\\", "/"));
         let tmp_file2 = std::path::PathBuf::from(&tmp_file);
         let tmp_file3 = std::path::PathBuf::from(&tmp_file);
-        let bbox = geo_bbox(self.x, self.y, self.z);
+        let bbox = geo_bbox(self.x, self.y, self.z).expand_relative(0.52);
         eprintln!("downloading geoduck {:?} into: {:?}", &self, tmp_file);
         async move {
             let theme2 = self.theme.clone();
@@ -146,7 +147,7 @@ impl DownloadId for OvertureMapsSegment {
         }
     }
     fn get_retry_count() -> u8 {
-        1
+        2
     }
 }
 
@@ -168,19 +169,19 @@ pub async fn download_geoduck_to_disk(
     download_id.get_final_path()
 }
 
-pub async fn load_geoduck_stats(
-    theme: &str,
-    _type: &str,
-    x: u64,
-    y: u64,
-    z: u8,
-) -> Result<GeoDuckSegmentSummary> {
-    let download_id = OvertureMapsSegment {
-        theme: theme.to_string(),
-        _type: _type.to_string(),
-        x,
-        y,
-        z,
-    };
-    Ok(download2(&download_id).await?)
-}
+// pub async fn load_geoduck_stats(
+//     theme: &str,
+//     _type: &str,
+//     x: u64,
+//     y: u64,
+//     z: u8,
+// ) -> Result<GeoDuckSegmentSummary> {
+//     let download_id = OvertureMapsSegment {
+//         theme: theme.to_string(),
+//         _type: _type.to_string(),
+//         x,
+//         y,
+//         z,
+//     };
+//     Ok(download2(&download_id).await?)
+// }

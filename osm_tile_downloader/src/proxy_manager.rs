@@ -484,6 +484,9 @@ pub trait DownloadId:
     fn get_retry_count() -> u8 {
         3
     }
+    fn get_max_parallel() -> i64 {
+        LINKS_CONFIG.proxy_fetch_parallel as i64
+    }
 }
 
 use std::any::type_name;
@@ -634,7 +637,7 @@ async fn download_in_parallel<T: DownloadId + 'static>(
 
     anyhow::bail!("err: cannot download. see below: \n {:#?}", _errors);
 }
-
+use rand::seq::SliceRandom;
 async fn download_loop<T: DownloadId>() {
     eprintln!("{}: STARTING DOWNLOAD LOOP", type_name::<T>());
     // RESET all pending to not running
@@ -661,62 +664,74 @@ async fn download_loop<T: DownloadId>() {
         {
             let pending_tree = get_db_pending_tree::<T>();
             let _ = pending_tree.flush_async().await;
-            // GET all pending but not started
-            let pending_keys: Vec<_> = pending_tree
-                .iter()
-                .flatten()
-                .filter(|x| !x.1)
-                .map(|x| x.0)
-                .filter(|x| x.prereq_satisfied().is_ok())
-                .collect();
-            if !pending_keys.is_empty() {
-                batch_id += 1;
-                use futures::stream::{FuturesUnordered, StreamExt};
-                let parallel_tasks = FuturesUnordered::new();
+            let running_count =
+                pending_tree.iter().flatten().filter(|x| x.1).count() as i64;
+            let can_start_another = T::get_max_parallel() - running_count;
+            if can_start_another > 0 {
+                // GET all pending but not started
+                let mut pending_keys: Vec<_> = pending_tree
+                    .iter()
+                    .flatten()
+                    .filter(|x| !x.1)
+                    .map(|x| x.0)
+                    .filter(|x| x.prereq_satisfied().is_ok())
+                    .collect();
 
-                // set as started and spawn the downloader
-                let mut deleted_keys: u64 = 0;
-                for k in pending_keys.iter() {
-                    if k.is_valid_request().is_err() {
-                        let _ = pending_tree.remove(k);
-                        deleted_keys += 1;
-                    } else {
-                        let _ = pending_tree.insert(k, &true);
-                        let k = k.clone();
-                        let z = tokio::task::spawn(do_download::<T>(k));
-                        parallel_tasks.push(z);
+                if !pending_keys.is_empty() {
+                    pending_keys.shuffle(&mut rand::thread_rng());
+                    while pending_keys.len() > can_start_another as usize {
+                        pending_keys.pop();
                     }
-                }
-                eprintln!(
-                    "{}: Download batch #{} started: {}, deleted: {}",
-                    type_name::<T>(),
-                    batch_id,
-                    parallel_tasks.len(),
-                    deleted_keys
-                );
-                let _ = pending_tree.flush_async().await;
 
-                tokio::task::spawn(async move {
-                    let results: Vec<_> =
-                        futures::stream::iter(parallel_tasks).collect().await;
-                    let mut success = 0;
-                    let mut fail = 0;
-                    for k in results {
-                        let k = k.await;
-                        if k.is_err() || k.unwrap().is_err() {
-                            fail += 1;
+                    batch_id += 1;
+                    use futures::stream::{FuturesUnordered, StreamExt};
+                    let parallel_tasks = FuturesUnordered::new();
+
+                    // set as started and spawn the downloader
+                    let mut deleted_keys: u64 = 0;
+                    for k in pending_keys.iter() {
+                        if k.is_valid_request().is_err() {
+                            let _ = pending_tree.remove(k);
+                            deleted_keys += 1;
                         } else {
-                            success += 1;
+                            let _ = pending_tree.insert(k, &true);
+                            let k = k.clone();
+                            let z = tokio::task::spawn(do_download::<T>(k));
+                            parallel_tasks.push(z);
+                            tokio::time::sleep(Duration::from_millis(8)).await;
                         }
                     }
                     eprintln!(
-                        "{}: Download batch #{} finished: {} SUCCESS | {} FAIL",
+                        "{}: Download batch #{} started: {}, deleted: {}",
                         type_name::<T>(),
                         batch_id,
-                        success,
-                        fail
+                        parallel_tasks.len(),
+                        deleted_keys
                     );
-                });
+                    let _ = pending_tree.flush_async().await;
+
+                    tokio::task::spawn(async move {
+                        let results: Vec<_> =
+                            futures::stream::iter(parallel_tasks).collect().await;
+                        let mut success = 0;
+                        let mut fail = 0;
+                        for k in results {
+                            let k = k.await;
+                            if k.is_err() || k.unwrap().is_err() {
+                                fail += 1;
+                            } else {
+                                success += 1;
+                            }
+                        }
+                        eprintln!(
+                            "{}: Download batch #{} finished: {} SUCCESS | {} FAIL",
+                            type_name::<T>(),
+                            batch_id,
+                            success,
+                            fail
+                        );
+                    });
+                }
             }
         }
 
@@ -773,13 +788,14 @@ pub async fn download2<T: DownloadId + 'static>(
 pub async fn download2_queue_item<T: DownloadId + 'static>(
     download_id: &T,
 ) -> anyhow::Result<T::TParseResult> {
-
-
     let final_tree = get_db_final_tree::<T>();
-    // if db entry exists, just return that, be it error or success.
+    // if db entry exists, just return that, be it error or success. if success; check if path exists
     if let Some(existing_entry) = final_tree.get(download_id)? {
         if let Some(existing_result) = existing_entry.parse_result {
-            return Ok(existing_result);
+            let path = download_id.get_final_path()?;
+            if tokio::fs::metadata(&path).await.is_ok() {
+                return Ok(existing_result);
+            }
         } else {
             anyhow::bail!(
                 "{}: download failed (pre-existing error): {}",
@@ -898,8 +914,10 @@ async fn do_download<T: DownloadId + 'static>(
                 let _ = pending_tree.remove(download_id);
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(15 * db_entry.fail_count as u64))
-                .await;
+            tokio::time::sleep(Duration::from_millis(
+                50 + 150 * db_entry.fail_count as u64,
+            ))
+            .await;
             pending_tree.insert(download_id, &false)?;
         }
     }
