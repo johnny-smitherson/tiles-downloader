@@ -24,10 +24,10 @@ impl GeoBBOX {
         let dy = self.y_max - self.y_min;
         assert!(dx > 0.0 && dy > 0.0, "malformed bbox");
         Self {
-            x_min: self.x_min - dx,
-            x_max: self.x_max + dx,
-            y_min: self.y_min - dy,
-            y_max: self.y_max + dy,
+            x_min: self.x_min - dx * q,
+            x_max: self.x_max + dx * q,
+            y_min: self.y_min - dy * q,
+            y_max: self.y_max + dy * q,
         }
     }
 }
