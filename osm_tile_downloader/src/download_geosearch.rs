@@ -1,3 +1,4 @@
+use crate::geo_trig::{GeoBBOX, GeoPoint};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,24 +12,6 @@ use geojson::FeatureCollection;
 use crate::config::LINKS_CONFIG;
 use crate::proxy_manager::download2;
 use crate::proxy_manager::DownloadId;
-
-#[derive(
-    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
-)]
-pub struct GeoPoint {
-    pub x_lon: f64,
-    pub y_lat: f64,
-}
-
-#[derive(
-    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
-)]
-pub struct GeoBBOX {
-    pub x_min: f64,
-    pub y_min: f64,
-    pub x_max: f64,
-    pub y_max: f64,
-}
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
 struct OSMGeolocationSearchQuery {

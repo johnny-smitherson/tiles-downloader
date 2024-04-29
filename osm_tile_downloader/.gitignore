@@ -4,3 +4,4 @@ output/
 tiles/
 data.sled
 data.tiles
+.tmp

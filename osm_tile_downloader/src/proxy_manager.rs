@@ -454,6 +454,22 @@ pub trait DownloadId:
         + for<'de> Deserialize<'de>
         + std::fmt::Debug;
     fn get_version() -> usize;
+    fn prereq_satisfied(&self) -> Result<()> {
+        if let Some(parent) = self.parent() {
+            if std::fs::metadata(parent.get_final_path()?).is_err() {
+                anyhow::bail!(
+                    "prereq failed: {:?} has parent {:?} missing from {:?}",
+                    self,
+                    &parent,
+                    &parent.get_final_path()?
+                )
+            }
+        }
+        Ok(())
+    }
+    fn parent(&self) -> Option<Self> {
+        None
+    }
     fn is_valid_request(&self) -> Result<()>;
     fn get_random_url(&self) -> Result<String>;
     fn get_final_path(&self) -> Result<PathBuf>;
@@ -651,6 +667,7 @@ async fn download_loop<T: DownloadId>() {
                 .flatten()
                 .filter(|x| !x.1)
                 .map(|x| x.0)
+                .filter(|x| x.prereq_satisfied().is_ok())
                 .collect();
             if !pending_keys.is_empty() {
                 batch_id += 1;
@@ -658,17 +675,24 @@ async fn download_loop<T: DownloadId>() {
                 let parallel_tasks = FuturesUnordered::new();
 
                 // set as started and spawn the downloader
+                let mut deleted_keys: u64 = 0;
                 for k in pending_keys.iter() {
-                    let _ = pending_tree.insert(k, &true);
-                    let k = k.clone();
-                    let z = tokio::task::spawn(do_download::<T>(k));
-                    parallel_tasks.push(z);
+                    if k.is_valid_request().is_err() {
+                        let _ = pending_tree.remove(k);
+                        deleted_keys += 1;
+                    } else {
+                        let _ = pending_tree.insert(k, &true);
+                        let k = k.clone();
+                        let z = tokio::task::spawn(do_download::<T>(k));
+                        parallel_tasks.push(z);
+                    }
                 }
                 eprintln!(
-                    "{}: Download batch #{} started: {}",
+                    "{}: Download batch #{} started: {}, deleted: {}",
                     type_name::<T>(),
                     batch_id,
-                    pending_keys.len()
+                    parallel_tasks.len(),
+                    deleted_keys
                 );
                 let _ = pending_tree.flush_async().await;
 
@@ -734,6 +758,22 @@ pub async fn download2<T: DownloadId + 'static>(
         anyhow::bail!("{}: request invalid: {:?}", type_name::<T>(), download_id);
     }
     ensure_spawned_download_loop::<T>().await;
+
+    {
+        let mut item = download_id.clone();
+        while let Some(parent) = item.parent() {
+            item = parent;
+            let _ = download2_queue_item(&item).await;
+        }
+    }
+
+    download2_queue_item(download_id).await
+}
+
+pub async fn download2_queue_item<T: DownloadId + 'static>(
+    download_id: &T,
+) -> anyhow::Result<T::TParseResult> {
+
 
     let final_tree = get_db_final_tree::<T>();
     // if db entry exists, just return that, be it error or success.

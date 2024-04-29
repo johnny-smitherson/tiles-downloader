@@ -1,4 +1,5 @@
 pub(crate) mod config;
+pub(crate) mod download_geoduck;
 pub(crate) mod download_geosearch;
 pub(crate) mod download_tile;
 pub(crate) mod fetch;
@@ -211,6 +212,20 @@ impl<'r> Responder<'r, 'static> for ImageResponse {
             .ok()
     }
 }
+#[get("/api/overt_geoduck/<theme>/<_type>/<z>/<x>/<y>/overt.parquet")]
+async fn get_overt_geoduck(
+    theme: &str,
+    _type: &str,
+    x: u64,
+    y: u64,
+    z: u8,
+) -> rocket_anyhow::Result<Option<NamedFile>> {
+    let path =
+        download_geoduck::download_geoduck_to_disk(theme, _type, x, y, z).await?;
+    Ok(Some(NamedFile::open(&path).await.with_context(|| {
+        format!("file missing from disk: {:?}", &path)
+    })?))
+}
 
 #[get("/api/tile_with_overlay/<server_name>/<z>/<x>/<y>/<extension>?<overlay_coordinates..>")]
 async fn get_tile_with_overlay(
@@ -267,6 +282,7 @@ async fn main() -> rocket_anyhow::Result<()> {
                 geo_search_json,
                 geo_index,
                 proxy_info,
+                get_overt_geoduck,
                 // geoduck_repl,
                 // geoduck_repl_api,
             ],

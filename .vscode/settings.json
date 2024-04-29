@@ -2,6 +2,7 @@
     "rust-analyzer.linkedProjects": [
         ".\\osm_tile_downloader\\Cargo.toml",
         ".\\crooked_earth\\Cargo.toml",
+        ".\\tropa_tropa\\Cargo.toml",
         // ".\\overt_geoduck\\Cargo.toml",
     ],
     "rust-analyzer.cargo.extraEnv": {

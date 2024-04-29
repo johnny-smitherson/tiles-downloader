@@ -9,9 +9,9 @@ use std::io::Cursor;
 
 use crate::config;
 use crate::config::{TileServerConfig, LINKS_CONFIG};
-use crate::download_geosearch::{GeoBBOX, GeoPoint};
 use crate::geo_trig::tile_index_float;
 use crate::geo_trig::xyz_to_bing_quadkey;
+use crate::geo_trig::{GeoBBOX, GeoPoint};
 use crate::proxy_manager;
 use crate::proxy_manager::DownloadId;
 

@@ -1,3 +1,35 @@
+use anyhow::Result;
+use std::collections::HashMap;
+use std::path::Path;
+use std::path::PathBuf;
+
+use anyhow::Context;
+use serde::{Deserialize, Serialize};
+
+use geojson::FeatureCollection;
+
+use crate::config::LINKS_CONFIG;
+use crate::proxy_manager::download2;
+use crate::proxy_manager::DownloadId;
+
+#[derive(
+    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
+)]
+pub struct GeoPoint {
+    pub x_lon: f64,
+    pub y_lat: f64,
+}
+
+#[derive(
+    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
+)]
+pub struct GeoBBOX {
+    pub x_min: f64,
+    pub y_min: f64,
+    pub x_max: f64,
+    pub y_max: f64,
+}
+
 pub fn tile_index(zoom: u8, lon_deg: f64, lat_deg: f64) -> (u64, u64) {
     let (tile_x, tile_y) = tile_index_float(zoom, lon_deg, lat_deg);
 
@@ -38,6 +70,24 @@ pub fn xyz_to_bing_quadkey(x: u64, y: u64, z: u8) -> String {
         quad_key.push(digit.to_string().chars().next().unwrap());
     }
     quad_key.iter().collect()
+}
+
+pub fn geo_bbox(x: u64, y: u64, z: u8) -> GeoBBOX {
+    use std::f64::consts::PI;
+    GeoBBOX {
+        x_min: (x as f64 / 2.0_f64.powi(z as i32)) * 360.0 - 180.0,
+        x_max: ((x + 1) as f64 / 2.0_f64.powi(z as i32)) * 360.0 - 180.0,
+        y_min: (PI - ((y + 1) as f64) / 2.0_f64.powi(z as i32) * 2.0 * PI)
+            .sinh()
+            .atan()
+            * 180.0
+            / PI,
+        y_max: (PI - (y as f64) / 2.0_f64.powi(z as i32) * 2.0 * PI)
+            .sinh()
+            .atan()
+            * 180.0
+            / PI,
+    }
 }
 
 #[cfg(test)]

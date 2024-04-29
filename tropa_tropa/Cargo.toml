@@ -1,0 +1,12 @@
+[package]
+name = "tropa_tropa"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "tropa_tropa"
+crate_type = ["cdylib", "lib"]
+
+[dependencies]

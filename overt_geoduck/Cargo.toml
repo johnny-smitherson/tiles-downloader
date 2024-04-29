@@ -16,3 +16,4 @@ serde_json = "1.0.115"
 geojson = "0.24.1"
 strfmt = "0.2.4"
 duckdb = {version="0.10.1", features = ["bundled", "httpfs", "json", "parquet"] }
+rand = "0.8.5"

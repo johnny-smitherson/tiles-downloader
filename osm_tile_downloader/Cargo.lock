@@ -2028,6 +2028,7 @@ dependencies = [
  "anyhow",
  "duckdb",
  "geojson",
+ "rand",
  "serde",
  "serde_json",
  "strfmt",
