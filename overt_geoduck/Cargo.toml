@@ -7,7 +7,7 @@ edition = "2021"
 
 [lib]
 name = "overt_geoduck"
-crate_type = ["cdylib", "lib"]
+crate_type = ["staticlib", "lib"]
 
 [dependencies]
 anyhow = "1.0.82"
