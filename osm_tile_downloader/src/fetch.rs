@@ -137,7 +137,7 @@ use anyhow::Result;
 //     Ok(())
 // }
 
-pub async fn fetch_with_socks5(
+pub async fn fetch_with_socks5_curl(
     url: &str,
     path: &Path,
     socks5_proxy: &str,
@@ -153,10 +153,55 @@ pub async fn fetch_with_socks5(
         .arg("-s")
         // .arg("-L")
         // KV ARGS
+        .arg("--insecure")
         .arg("-o")
         .arg(path)
         .arg("--user-agent")
         .arg(user_agent)
+        .arg("--socks5-hostname")
+        .arg(socks5_proxy)
+        .arg("--connect-timeout")
+        .arg((LINKS_CONFIG.timeout_secs - 2).to_string())
+        .arg("--max-time")
+        .arg((LINKS_CONFIG.timeout_secs - 1).to_string())
+        // URL
+        .arg(url);
+    // eprintln!("running curl proxy = {}; url = {}", socks5_proxy, url);
+    let mut curl = curl_cmd.spawn()?;
+    let curl_status = curl.wait().await?;
+    if curl_status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "curl fail to get file using socks proxy = {:?}  url = {:?}",
+            socks5_proxy,
+            url
+        )
+    }
+}
+
+pub async fn fetch_with_socks5_impersonate(
+    url: &str,
+    path: &Path,
+    socks5_proxy: &str,
+) -> Result<()> {
+    use rand::seq::SliceRandom;
+    let _user_agent = LINKS_CONFIG
+        .user_agents
+        .choose(&mut rand::thread_rng())
+        .context("no user-agent")?;
+
+    let mut curl_cmd =
+        tokio::process::Command::new(LINKS_CONFIG.curl_impersonate_path.clone());
+    curl_cmd
+        .arg("-s")
+        .arg("--insecure")
+        // .arg("-L")
+        // KV ARGS
+        .arg("-o")
+        .arg(path)
+        // .arg("--user-agent")
+        // .arg(user_agent)
         .arg("--socks5-hostname")
         .arg(socks5_proxy)
         .arg("--connect-timeout")

@@ -19,9 +19,9 @@ pub struct DownloadEverythingSummary {
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
 pub struct DownloadEverythingItem {
-    pub name: String,
+    // pub name: String,
     pub url: String,
-    pub result: String,
+    // pub result: String,
     pub success: bool,
     pub file_size_mb: f64,
     pub item_theme: String,
@@ -30,49 +30,73 @@ pub struct DownloadEverythingItem {
     pub y: u64,
     pub z: u8,
 }
+
+fn tiles_around(x: u64, y: u64, z: u8, extra: u8) -> Vec<(u64, u64)> {
+    let mut v = vec![];
+    let x = x as i64;
+    let y = y as i64;
+
+    for dx in -(extra as i64)..=(extra as i64) {
+        for dy in -(extra as i64)..=(extra as i64) {
+            let x = x + dx;
+            let y = y + dy;
+            if x > 0 && y > 0 && x < 2_i64.pow(z.into()) && y < 2_i64.pow(z.into()) {
+                v.push((x as u64, y as u64));
+            }
+        }
+    }
+
+    v
+}
+
 async fn download_all_tiles(
     point: &GeoPoint,
 ) -> anyhow::Result<Vec<DownloadEverythingItem>> {
+    const TILE_EXTRA_EACH_SIDE: u8 = 1;
     let mut v = vec![];
 
     let tile_servers = config::get_all_tile_servers()?;
     for srv in tile_servers.iter() {
         for z in 1..=srv.max_level {
-            let (x, y) = geo_trig::tile_index(z, point.x_lon, point.y_lat);
-            let server_name = srv.name.clone();
-            let ext = srv.img_type.clone();
-            let url = uri!(http_api::get_tile(
-                server_name = server_name.clone(),
-                x = x,
-                y = y,
-                z = z,
-                extension = ext.clone(),
-            ))
-            .path()
-            .to_string();
+            let (x0, y0) = geo_trig::tile_index(z, point.x_lon, point.y_lat);
+            for (x, y) in tiles_around(x0, y0, z, TILE_EXTRA_EACH_SIDE) {
+                let server_name = srv.name.clone();
+                let ext = srv.img_type.clone();
+                let url = uri!(http_api::get_tile(
+                    server_name = server_name.clone(),
+                    x = x,
+                    y = y,
+                    z = z,
+                    extension = ext.clone(),
+                ))
+                .path()
+                .to_string();
 
-            let rv = get_tile(&server_name, x, y, z, &ext).await;
-            let file_size_mb = if let Ok(p) = &rv {
-                tokio::fs::metadata(p).await?.file_size() as f64 / 1024.0 / 1024.0
-            } else {
-                0.0
-            };
-            let item_name = format!(
-                "tile {}/{} z={} x={} y={}",
-                &srv.map_type, server_name, z, x, y
-            );
-            v.push(DownloadEverythingItem {
-                name: item_name,
-                url,
-                result: format!("{:?}", &rv),
-                success: rv.is_ok(),
-                file_size_mb,
-                item_theme: srv.map_type.clone(),
-                item_type: server_name.clone(),
-                x,
-                y,
-                z,
-            });
+                let rv = get_tile(&server_name, x, y, z, &ext).await;
+                let file_size_mb = if let Ok(p) = &rv {
+                    tokio::fs::metadata(p).await?.file_size() as f64
+                        / 1024.0
+                        / 1024.0
+                } else {
+                    0.0
+                };
+                // let item_name = format!(
+                //     "tile {}/{} z={} x={} y={}",
+                //     &srv.map_type, server_name, z, x, y
+                // );
+                v.push(DownloadEverythingItem {
+                    // name: item_name,
+                    url,
+                    // result: format!("{:?}", &rv),
+                    success: rv.is_ok(),
+                    file_size_mb,
+                    item_theme: srv.map_type.clone(),
+                    item_type: server_name.clone(),
+                    x,
+                    y,
+                    z,
+                });
+            }
         }
     }
 
@@ -89,8 +113,8 @@ async fn download_all_geoduck(
     {
         let (x, y) = geo_trig::tile_index(z, point.x_lon, point.y_lat);
         for (theme, _type) in download_geoduck::OVERT_THEMES.iter() {
-            let item_name =
-                format!("geoduck {}/{} z={} x={} y={}", theme, _type, z, x, y);
+            // let item_name =
+            //     format!("geoduck {}/{} z={} x={} y={}", theme, _type, z, x, y);
             let rv =
                 download_geoduck::download_geoduck_to_disk(theme, _type, x, y, z)
                     .await;
@@ -109,9 +133,9 @@ async fn download_all_geoduck(
                 0.0
             };
             v.push(DownloadEverythingItem {
-                name: item_name,
+                // name: item_name,
                 url,
-                result: format!("{:?}", &rv),
+                // result: format!("{:?}", &rv),
                 success: rv.is_ok(),
                 file_size_mb,
                 item_theme: theme.clone(),

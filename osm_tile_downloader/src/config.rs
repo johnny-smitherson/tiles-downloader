@@ -13,14 +13,14 @@ lazy_static::lazy_static! {
 
     pub static ref DB_TILE_SERVER_CONFIGS:
         typed_sled::Tree::<String, TileServerConfig>
-        = typed_sled::Tree::<String, TileServerConfig>::open(&SLED_DB, "tile_server_configs");
+        = typed_sled::Tree::<String, TileServerConfig>::open(&SLED_DB, "tile_server_configs_v2");
     pub static ref DB_SOCKS_SCRAPER_CONFIGS:
         typed_sled::Tree::<String, Socks5ProxyScraperConfig>
-        = typed_sled::Tree::<String, Socks5ProxyScraperConfig>::open(&SLED_DB, "socks5_scraper_configs");
+        = typed_sled::Tree::<String, Socks5ProxyScraperConfig>::open(&SLED_DB, "socks5_scraper_configs_v2");
 
     pub static ref DB_STAT_COUNTER:
         typed_sled::Tree::<StatCounterKey, StatCounterVal>
-         = typed_sled::Tree::<StatCounterKey, StatCounterVal>::open(&SLED_DB, "stat_counter_2");
+         = typed_sled::Tree::<StatCounterKey, StatCounterVal>::open(&SLED_DB, "stat_counter_3");
 }
 
 #[derive(
@@ -128,6 +128,7 @@ pub struct LinksConfig {
     pub timeout_secs: u64,
     pub retries: u8,
     pub curl_path: PathBuf,
+    pub curl_impersonate_path: PathBuf,
     pub tile_servers: Vec<TileServerConfig>,
     pub socks5_scrape_servers: Vec<Socks5ProxyScraperConfig>,
     pub geo_search_url: String,

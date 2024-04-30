@@ -32,6 +32,9 @@ impl TileFetchId {
 
 impl DownloadId for TileFetchId {
     type TParseResult = ();
+    fn get_max_parallel() -> i64 {
+        222
+    }
     fn get_version() -> usize {
         0
     }

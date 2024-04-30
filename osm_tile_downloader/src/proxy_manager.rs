@@ -6,13 +6,14 @@ use crate::config::{self, *};
 use crate::fetch;
 use anyhow::Context;
 use anyhow::Result;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
-    pub static ref DB_SCRAPER_LAST_REFRESH:  typed_sled::Tree::<String, f64> = typed_sled::Tree::<String, f64>::open(&SLED_DB, "socks5_scraper_last_refresh_f64");
-    pub static ref DB_SOCKS5_PROXY_ENTRY:  typed_sled::Tree::<String, Socks5ProxyEntry> = typed_sled::Tree::<String, Socks5ProxyEntry>::open(&SLED_DB, "socks5_proxy_entry_v2");
+    pub static ref DB_SCRAPER_LAST_REFRESH:  typed_sled::Tree::<String, f64> = typed_sled::Tree::<String, f64>::open(&SLED_DB, "socks5_scraper_last_refresh_v7_f64");
+    pub static ref DB_SOCKS5_PROXY_ENTRY:  typed_sled::Tree::<String, Socks5ProxyEntry> = typed_sled::Tree::<String, Socks5ProxyEntry>::open(&SLED_DB, "socks5_proxy_entry_v5");
 }
-const SCRAPER_REFRESH_SECONDS: f64 = 1200.0;
+const SCRAPER_REFRESH_SECONDS: f64 = 300.0;
 const ENTRY_DELETE_SECONDS: f64 = 7200.0;
 use crate::config::get_current_timestamp;
 
@@ -55,7 +56,7 @@ async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
         .tor_addr_list
         .choose(&mut rand::thread_rng())
         .context("no socks proxy")?;
-    fetch::fetch_with_socks5(url, path, socks5_proxy).await
+    fetch::fetch_with_socks5_impersonate(url, path, socks5_proxy).await
 }
 
 async fn download_socks5_proxy_list(
@@ -93,12 +94,15 @@ async fn parse_socks5_proxy_list(path: &Path) -> anyhow::Result<Vec<String>> {
             }
         })
         .collect();
-    let mut text: String = String::from_utf8_lossy(text.as_slice()).to_string();
-    for _ in 0..=5 {
-        text = text.replacen("    ", " ", 1000);
-        text = text.replacen("  ", " ", 1000);
-    }
+    let text: String = String::from_utf8_lossy(text.as_slice()).to_string();
+    let text = text.trim()
+    .split(' ')
+    .filter(|s| !s.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ");
+
     let text = text;
+    tokio::fs::write(format!("{}.clean.txt", path.to_str().unwrap()), text.as_bytes()).await?;
     let mut found_socks = Vec::<String>::new();
     for cap in re.captures_iter(text.as_str()) {
         let a: i32 = cap[1].parse().unwrap();
@@ -201,9 +205,13 @@ async fn refresh_all_socks5_proxy_lists() -> anyhow::Result<()> {
 }
 
 async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()> {
+    if proxy.last_success_count < 3 && proxy.last_err_count > 15 {
+        anyhow::bail!("bad server under 20% success");
+    }
+    // Ok(())
     let temp_file = tempfile("download.icanhazip.txt").await?;
-    fetch::fetch_with_socks5(
-        "http://icanhazip.com/",
+    fetch::fetch_with_socks5_curl(
+        "https://example.org/",
         temp_file.file_path(),
         &proxy.addr,
     )
@@ -212,23 +220,27 @@ async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()>
         tokio::fs::read(temp_file.file_path()).await?.as_slice(),
     )
     .to_string();
-
-    fn truncate(s: &str, max_chars: usize) -> &str {
-        match s.char_indices().nth(max_chars) {
-            None => s,
-            Some((idx, _)) => &s[..idx],
-        }
+    if resp.len() == 0 {
+        anyhow::bail!("did not get any data from test page");
     }
-    let resp = truncate(&resp, 41).trim();
+    Ok(())
 
-    let is_ipv4 = resp.parse::<std::net::Ipv4Addr>().is_ok();
-    let is_ipv6 = resp.parse::<std::net::Ipv6Addr>().is_ok();
-    proxy.last_remote_ip = resp.to_owned();
-    if is_ipv4 || is_ipv6 || resp.eq("阻断未备案") {
-        Ok(())
-    } else {
-        anyhow::bail!("bad ip address from icanhazip: '{}'", resp)
-    }
+    // fn truncate(s: &str, max_chars: usize) -> &str {
+    //     match s.char_indices().nth(max_chars) {
+    //         None => s,
+    //         Some((idx, _)) => &s[..idx],
+    //     }
+    // }
+    // let resp = truncate(&resp, 41).trim();
+
+    // let is_ipv4 = resp.parse::<std::net::Ipv4Addr>().is_ok();
+    // let is_ipv6 = resp.parse::<std::net::Ipv6Addr>().is_ok();
+    // proxy.last_remote_ip = resp.to_owned();
+    // if is_ipv4 || is_ipv6  { // || resp.eq("阻断未备案")
+    //     Ok(())
+    // } else {
+    //     anyhow::bail!("bad ip address from icanhazip: '{}'", resp)
+    // }
 }
 
 #[allow(unused_assignments)]
@@ -310,7 +322,11 @@ pub async fn proxy_manager_loop() {
         if proxy_manager_iteration().await.is_err() {
             eprintln!("proxy manager loop iteration failed!");
         }
-        tokio::time::sleep(Duration::from_secs_f64(SCRAPER_REFRESH_SECONDS)).await;
+        let rand_multipler = rand::thread_rng().gen_range(1.0..3.0);
+        tokio::time::sleep(Duration::from_secs_f64(
+            SCRAPER_REFRESH_SECONDS * rand_multipler,
+        ))
+        .await;
     }
 }
 
@@ -530,7 +546,7 @@ pub async fn download_once_2<T: DownloadId>(
     tokio::time::sleep(initial_delay).await;
     let url = download_id.get_random_url()?;
     let path2 = path.clone();
-    let res = fetch::fetch_with_socks5(url.as_str(), &path, &socks_addr).await;
+    let res = fetch::fetch_with_socks5_curl(url.as_str(), &path, &socks_addr).await;
     proxy_stat_increment(
         "download",
         url.as_str(),
