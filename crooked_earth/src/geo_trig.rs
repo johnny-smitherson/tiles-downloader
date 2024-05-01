@@ -20,7 +20,7 @@ pub struct GeoBBox {
 }
 
 impl GeoBBox {
-    pub fn to_tris(self: &Self) -> Vec<TriangleData> {
+    pub fn to_tris(&self) -> Vec<TriangleData> {
         // 1 2
         // 3 4 ;  1-3-2  2-3-4
         let uv1 = Vec2::ZERO;
@@ -56,7 +56,7 @@ fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {
     }
 }
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone)]
 pub struct TriangleData {
     verts: [Vec3; 3],
     uvs: [Vec2; 3],
@@ -124,7 +124,7 @@ pub fn generate_mesh(tris: Vec<TriangleData>) -> Mesh {
 }
 
 impl TileCoord {
-    pub fn geo_bbox(self: &Self) -> GeoBBox {
+    pub fn geo_bbox(&self) -> GeoBBox {
         let rv = GeoBBox {
             lon_west: (self.x as f64 / 2.0_f64.powi(self.z as i32)) * 360.0 - 180.0,
             lon_east: ((self.x + 1) as f64 / 2.0_f64.powi(self.z as i32)) * 360.0 - 180.0,

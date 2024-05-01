@@ -65,7 +65,7 @@ fn uv_debug_texture() -> Image {
 
 fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
     for tile in geo_trig::init_tiles() {
-        let t2 = tile.clone();
+        let t2 = tile;
         runtime.spawn_background_task(move |mut ctx| async move {
             let (mesh, image) = get_tile(t2).await;
             ctx.sleep_updates(1).await;
@@ -73,8 +73,8 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
             let mesh_handle = ctx
                 .run_on_main_thread(move |ctx| {
                     let mut meshes = ctx.world.get_resource_mut::<Assets<Mesh>>().unwrap();
-                    let mesh_handle = meshes.add(mesh);
-                    mesh_handle
+                    
+                    meshes.add(mesh)
                 })
                 .await;
 
@@ -84,8 +84,8 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                 .run_on_main_thread(move |ctx| {
                     let mut images = ctx.world.get_resource_mut::<Assets<Image>>().unwrap();
 
-                    let image_handle = images.add(image);
-                    image_handle
+                    
+                    images.add(image)
                 })
                 .await;
 
@@ -98,11 +98,11 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                         .get_resource_mut::<Assets<StandardMaterial>>()
                         .unwrap();
 
-                    let mat_handle = materials.add(StandardMaterial {
+                    
+                    materials.add(StandardMaterial {
                         base_color_texture: Some(image_handle),
                         ..default()
-                    });
-                    mat_handle
+                    })
                 })
                 .await;
 
