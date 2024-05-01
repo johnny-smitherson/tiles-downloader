@@ -5,6 +5,8 @@ use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat,
 };
+use rand::Rng;
+use reqwest::StatusCode;
 
 pub struct EarthFetchPlugin {}
 
@@ -15,13 +17,32 @@ impl Plugin for EarthFetchPlugin {
 }
 
 async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
-    let mesh = geo_trig::generate_mesh(tile.geo_bbox().to_tris());
+    let mesh = geo_trig::generate_mesh(tile.geo_bbox().to_tris(crate::earth_camera::EARTH_RADIUS_KM));
 
     let tile_url = format!(
         "http://localhost:8000/api/tile/arcgis_sat/{}/{}/{}/tile.jpg",
         tile.z, tile.x, tile.y
     );
-    let img = reqwest::get(tile_url).await.unwrap().bytes().await.unwrap();
+    let img = {
+        let mut current_wait = 1.0;
+        loop {
+            let resp = reqwest::get(&tile_url).await;
+            if let Ok(resp) = resp {
+                if resp.status() == StatusCode::OK {
+                    if let Ok(bytes) = resp.bytes().await {
+                        break bytes;
+                    }
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs_f64(current_wait)).await;
+            current_wait *= 1.1;
+            current_wait += 0.1;
+            if current_wait > 10.0 {
+                current_wait = 10.0;
+                warn!("tile still not downloaded while at max wait: {:?}", &tile);
+            }
+        }
+    };
     info!("downlaoded {:?}: {} bytes", &tile, img.len());
 
     let img_reader = image::io::Reader::with_format(
@@ -69,12 +90,20 @@ fn uv_debug_texture() -> Image {
     )
 }
 
+use crate::bevy_tokio_tasks::TaskContext;
+async fn rand_sleep(ctx: &mut TaskContext) {
+    let _rand_sleep = (&mut rand::thread_rng()).gen_range(1..3);
+    ctx.sleep_updates(_rand_sleep).await;
+}
 fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
     for tile in geo_trig::init_tiles() {
         let t2 = tile;
         runtime.spawn_background_task(move |mut ctx| async move {
+            rand_sleep(&mut ctx).await;
+
             let (mesh, image) = get_tile(t2).await;
-            ctx.sleep_updates(1).await;
+
+            rand_sleep(&mut ctx).await;
 
             let mesh_handle = ctx
                 .run_on_main_thread(move |ctx| {
@@ -85,7 +114,7 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                 })
                 .await;
 
-            ctx.sleep_updates(1).await;
+            rand_sleep(&mut ctx).await;
 
             let image_handle = ctx
                 .run_on_main_thread(move |ctx| {
@@ -96,7 +125,7 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                 })
                 .await;
 
-            ctx.sleep_updates(1).await;
+            rand_sleep(&mut ctx).await;
 
             let mat_handle = ctx
                 .run_on_main_thread(move |ctx| {
@@ -112,7 +141,7 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                 })
                 .await;
 
-            ctx.sleep_updates(1).await;
+            rand_sleep(&mut ctx).await;
 
             info!("assets loaded for {:?}", &tile);
             ctx.run_on_main_thread(move |ctx| {

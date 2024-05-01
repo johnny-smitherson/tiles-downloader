@@ -20,7 +20,7 @@ pub struct GeoBBox {
 }
 
 impl GeoBBox {
-    pub fn to_tris(&self) -> Vec<TriangleData> {
+    pub fn to_tris(&self, sphere_radius: f64) -> Vec<TriangleData> {
         // 1 2
         // 3 4 ;  1-3-2  2-3-4
         let uv1 = Vec2::ZERO;
@@ -28,10 +28,10 @@ impl GeoBBox {
         let uv3 = Vec2::Y;
         let uv4 = Vec2::X + Vec2::Y;
 
-        let p1 = gps_to_cartesian(self.lon_west, self.lat_north);
-        let p2 = gps_to_cartesian(self.lon_east, self.lat_north);
-        let p3 = gps_to_cartesian(self.lon_west, self.lat_south);
-        let p4 = gps_to_cartesian(self.lon_east, self.lat_south);
+        let p1 = gps_to_cartesian(self.lon_west, self.lat_north) * sphere_radius as f32;
+        let p2 = gps_to_cartesian(self.lon_east, self.lat_north)* sphere_radius as f32;
+        let p3 = gps_to_cartesian(self.lon_west, self.lat_south)* sphere_radius as f32;
+        let p4 = gps_to_cartesian(self.lon_east, self.lat_south)* sphere_radius as f32;
         vec![
             TriangleData::new([p1, p3, p2], [uv1, uv3, uv2]),
             TriangleData::new([p2, p3, p4], [uv2, uv3, uv4]),
@@ -40,7 +40,7 @@ impl GeoBBox {
     }
 }
 
-fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {
+pub fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {
     // Vec3 {
     //     x:(lat) as f32/360.0,
     //     y:(lon) as f32/360.0,
@@ -151,7 +151,7 @@ impl TileCoord {
     }
 }
 
-const INIT_TILES_START_LEVEL: u8 = 4;
+const INIT_TILES_START_LEVEL: u8 = 5;
 
 pub fn init_tiles() -> Vec<TileCoord> {
     let mut vec = Vec::<TileCoord>::new();
