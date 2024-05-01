@@ -5,10 +5,8 @@ mod bevy_tokio_tasks;
 use bevy::{
     ecs::system::{CommandQueue, SystemState},
     prelude::*,
-    tasks::{block_on, futures_lite::future, AsyncComputeTaskPool, IoTaskPool, Task},
+    tasks::{block_on, futures_lite::future, IoTaskPool, Task},
 };
-use rand::Rng;
-use std::{thread, time::Duration};
 
 fn main() {
     App::new()

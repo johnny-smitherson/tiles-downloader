@@ -51,7 +51,6 @@ impl Socks5ProxyEntry {
 }
 
 async fn download_once_tor(url: &str, path: &Path) -> Result<()> {
-    use rand::seq::SliceRandom;
     let socks5_proxy = LINKS_CONFIG
         .tor_addr_list
         .choose(&mut rand::thread_rng())
@@ -359,7 +358,6 @@ pub fn get_all_broken_proxies() -> Vec<Socks5ProxyEntry> {
 }
 
 pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
-    use rand::seq::SliceRandom;
     if count == 0 {
         return vec![];
     }
@@ -426,7 +424,7 @@ use std::path::PathBuf;
 async fn setup_proxy_and_temp(
     url: &str,
 ) -> Result<Vec<(usize, String, String, async_tempfile::TempFile)>> {
-    use rand::seq::SliceRandom;
+
     let tor_addr = LINKS_CONFIG
         .tor_addr_list
         .choose(&mut rand::thread_rng())
@@ -895,7 +893,6 @@ async fn do_download<T: DownloadId + 'static>(
         ("".to_string(), 0)
     };
 
-    use rand::Rng;
     let rand_name = format!("{}.download_final", rand::thread_rng().gen::<u128>());
     let temp_empty = tmpdir().join(PathBuf::from(rand_name));
     let parsed = download_id.download_into(&temp_empty).await;

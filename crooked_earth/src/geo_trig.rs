@@ -67,7 +67,7 @@ pub struct TriangleData {
 }
 impl TriangleData {
     fn new(verts: [Vec3; 3], uvs: [Vec2; 3]) -> Self {
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
 
         // let v12 = verts[2] - verts[1];
         // let v01 = verts[1] - verts[0];

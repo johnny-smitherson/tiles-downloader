@@ -1,8 +1,8 @@
 use crate::bevy_tokio_tasks::TokioTasksRuntime;
 use crate::geo_trig;
 use bevy::prelude::*;
-use bevy::render::mesh::{self, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 pub struct EarthFetchPlugin {}
 
@@ -26,7 +26,6 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
         image::io::Reader::with_format(std::io::Cursor::new(img), image::ImageFormat::Jpeg);
     let img = img_reader.decode().unwrap();
 
-    use bevy::render::render_asset::RenderAssetUsages;
     let img = Image::from_dynamic(
         img,
         false,
@@ -35,13 +34,8 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
     (mesh, img)
 }
 
-use bevy::{
-    prelude::*,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
-};
-use rand::Rng;
-
 /// Creates a colorful test pattern
+#[allow(dead_code)]
 fn uv_debug_texture() -> Image {
     const TEXTURE_SIZE: usize = 8;
 

@@ -1,7 +1,5 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
-use std::f64::consts::PI;
-
 use bevy::prelude::*;
 
 #[derive(Component)]

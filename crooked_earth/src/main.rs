@@ -1,7 +1,5 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
-use std::f64::consts::PI;
-
 mod earth_camera;
 mod earth_fetch;
 mod geo_trig;
@@ -9,7 +7,7 @@ mod util;
 
 use bevy::prelude::*;
 mod bevy_tokio_tasks;
-use bevy_tokio_tasks::{TokioTasksPlugin, TokioTasksRuntime};
+use bevy_tokio_tasks::TokioTasksPlugin;
 
 fn main() {
     App::new()
