@@ -148,7 +148,8 @@ pub async fn fetch_with_socks5_curl(
         .choose(&mut rand::thread_rng())
         .context("no user-agent")?;
 
-    let mut curl_cmd = tokio::process::Command::new(LINKS_CONFIG.curl_path.clone());
+    let mut curl_cmd =
+        tokio::process::Command::new(LINKS_CONFIG.curl_path.clone());
     curl_cmd
         .arg("-s")
         // .arg("-L")
@@ -191,8 +192,9 @@ pub async fn fetch_with_socks5_impersonate(
         .choose(&mut rand::thread_rng())
         .context("no user-agent")?;
 
-    let mut curl_cmd =
-        tokio::process::Command::new(LINKS_CONFIG.curl_impersonate_path.clone());
+    let mut curl_cmd = tokio::process::Command::new(
+        LINKS_CONFIG.curl_impersonate_path.clone(),
+    );
     curl_cmd
         .arg("-s")
         .arg("--insecure")

@@ -46,7 +46,8 @@ impl Socks5ProxyEntry {
     fn needs_delete(&self) -> bool {
         (self.checked)
             && (!self.accepted)
-            && (get_current_timestamp() - self.last_scraped > ENTRY_DELETE_SECONDS)
+            && (get_current_timestamp() - self.last_scraped
+                > ENTRY_DELETE_SECONDS)
     }
 }
 
@@ -164,7 +165,8 @@ async fn refresh_single_socks5_proxy_list(
             existing_addr_count += 1;
             existing_item.last_scraped = get_current_timestamp();
             existing_item.category = srv.name.clone();
-            DB_SOCKS5_PROXY_ENTRY.insert(&existing_item.addr, &existing_item)?;
+            DB_SOCKS5_PROXY_ENTRY
+                .insert(&existing_item.addr, &existing_item)?;
         } else {
             DB_SOCKS5_PROXY_ENTRY.insert(
                 &addr,
@@ -208,7 +210,9 @@ async fn refresh_all_socks5_proxy_lists() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn _socks5_check_proxy(proxy: &mut Socks5ProxyEntry) -> anyhow::Result<()> {
+async fn _socks5_check_proxy(
+    proxy: &mut Socks5ProxyEntry,
+) -> anyhow::Result<()> {
     if proxy.last_success_count < 3 && proxy.last_err_count > 15 {
         anyhow::bail!("bad server under 20% success");
     }
@@ -257,8 +261,10 @@ pub async fn proxy_manager_iteration() -> Result<()> {
     let mut _deleted = 0;
 
     let all_proxies = get_all_proxy_entries();
-    let addr_list: Vec<&str> = all_proxies.iter().map(|e| e.addr.as_str()).collect();
-    let all_proxy_event_count = &config::stat_count_events_for_items(&addr_list);
+    let addr_list: Vec<&str> =
+        all_proxies.iter().map(|e| e.addr.as_str()).collect();
+    let all_proxy_event_count =
+        &config::stat_count_events_for_items(&addr_list);
     futures::stream::iter(all_proxies)
         .for_each_concurrent(
             LINKS_CONFIG.proxy_fetch_parallel as usize,
@@ -270,7 +276,10 @@ pub async fn proxy_manager_iteration() -> Result<()> {
                     if (v.last_success_count != 0 || v.last_err_count != 0)
                         && DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err()
                     {
-                        eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
+                        eprintln!(
+                            "db failed to overwrite socks5 item: {}",
+                            &v.addr
+                        );
                     }
                 }
 
@@ -295,7 +304,10 @@ pub async fn proxy_manager_iteration() -> Result<()> {
                 };
 
                 if DB_SOCKS5_PROXY_ENTRY.insert(&v.addr, &v).is_err() {
-                    eprintln!("db failed to overwrite socks5 item: {}", &v.addr);
+                    eprintln!(
+                        "db failed to overwrite socks5 item: {}",
+                        &v.addr
+                    );
                 }
                 // do the delete last, to keep some older entries after reboot
                 if v.needs_delete() {
@@ -362,10 +374,14 @@ pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
         return vec![];
     }
     get_all_working_proxies()
-        .choose_multiple_weighted(&mut rand::thread_rng(), count as usize, |x| {
-            (1 + 2 * x.last_success_count) as f64
-                / (1 + x.last_success_count + x.last_err_count) as f64
-        })
+        .choose_multiple_weighted(
+            &mut rand::thread_rng(),
+            count as usize,
+            |x| {
+                (1 + 2 * x.last_success_count) as f64
+                    / (1 + x.last_success_count + x.last_err_count) as f64
+            },
+        )
         .expect("cannot random choose proxy items?")
         .cloned()
         .collect()
@@ -409,7 +425,9 @@ fn proxy_stat_increment(
             old_entry.accepted = true;
         } else {
             old_entry.last_err_count += 1;
-            if old_entry.last_err_count > 50 && old_entry.last_success_count == 0 {
+            if old_entry.last_err_count > 50
+                && old_entry.last_success_count == 0
+            {
                 old_entry.accepted = false;
             }
         }
@@ -424,7 +442,6 @@ use std::path::PathBuf;
 async fn setup_proxy_and_temp(
     url: &str,
 ) -> Result<Vec<(usize, String, String, async_tempfile::TempFile)>> {
-
     let tor_addr = LINKS_CONFIG
         .tor_addr_list
         .choose(&mut rand::thread_rng())
@@ -496,8 +513,8 @@ pub trait DownloadId:
     fn download_into(
         &self,
         tmp_file: &Path,
-    ) -> impl std::future::Future<Output = Result<Self::TParseResult>> + std::marker::Send
-    {
+    ) -> impl std::future::Future<Output = Result<Self::TParseResult>>
+           + std::marker::Send {
         async { download_in_parallel(self, tmp_file).await }
     }
     fn get_retry_count() -> u8 {
@@ -549,7 +566,8 @@ pub async fn download_once_2<T: DownloadId>(
     tokio::time::sleep(initial_delay).await;
     let url = download_id.get_random_url()?;
     let path2 = path.clone();
-    let res = fetch::fetch_with_socks5_curl(url.as_str(), &path, &socks_addr).await;
+    let res =
+        fetch::fetch_with_socks5_curl(url.as_str(), &path, &socks_addr).await;
     proxy_stat_increment(
         "download",
         url.as_str(),
@@ -620,7 +638,8 @@ async fn download_in_parallel<T: DownloadId + 'static>(
         tokio::time::sleep(Duration::from_millis(1)).await;
         match parallel_tasks.next().await {
             Some(result) => {
-                let result = result.context("cannot obtain finalized result")?;
+                let result =
+                    result.context("cannot obtain finalized result")?;
                 if let Err(err) = result {
                     _errors.push(err);
                 } else {
@@ -731,7 +750,9 @@ async fn download_loop<T: DownloadId>() {
 
                     tokio::task::spawn(async move {
                         let results: Vec<_> =
-                            futures::stream::iter(parallel_tasks).collect().await;
+                            futures::stream::iter(parallel_tasks)
+                                .collect()
+                                .await;
                         let mut success = 0;
                         let mut fail = 0;
                         for k in results {
@@ -789,7 +810,11 @@ pub async fn download2<T: DownloadId + 'static>(
     download_id: &T,
 ) -> anyhow::Result<T::TParseResult> {
     if download_id.is_valid_request().is_err() {
-        anyhow::bail!("{}: request invalid: {:?}", type_name::<T>(), download_id);
+        anyhow::bail!(
+            "{}: request invalid: {:?}",
+            type_name::<T>(),
+            download_id
+        );
     }
     ensure_spawned_download_loop::<T>().await;
 
@@ -833,7 +858,8 @@ pub async fn download2_queue_item<T: DownloadId + 'static>(
             let download_id2 = download_id.clone();
             {
                 if let Ok(result) =
-                    spawn_blocking(move || download_id2.parse_respose(&path)).await?
+                    spawn_blocking(move || download_id2.parse_respose(&path))
+                        .await?
                 {
                     // write result to db
                     let db_value = DownloadEntry::<T::TParseResult> {
@@ -861,11 +887,12 @@ pub async fn download2_queue_item<T: DownloadId + 'static>(
     }
 
     // if we don't have any old record, write one now
-    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(download_id)? {
-        (old.error_txt, old.fail_count)
-    } else {
-        ("".to_string(), 0)
-    };
+    let (old_err, old_fail_cnt) =
+        if let Some(old) = final_tree.get(download_id)? {
+            (old.error_txt, old.fail_count)
+        } else {
+            ("".to_string(), 0)
+        };
     final_tree.insert(
         download_id,
         &DownloadEntry::<T::TParseResult> {
@@ -887,18 +914,21 @@ async fn do_download<T: DownloadId + 'static>(
 ) -> anyhow::Result<T::TParseResult> {
     let download_id = &download_id;
     let final_tree = get_db_final_tree::<T>();
-    let (old_err, old_fail_cnt) = if let Some(old) = final_tree.get(download_id)? {
-        (old.error_txt, old.fail_count)
-    } else {
-        ("".to_string(), 0)
-    };
+    let (old_err, old_fail_cnt) =
+        if let Some(old) = final_tree.get(download_id)? {
+            (old.error_txt, old.fail_count)
+        } else {
+            ("".to_string(), 0)
+        };
 
-    let rand_name = format!("{}.download_final", rand::thread_rng().gen::<u128>());
+    let rand_name =
+        format!("{}.download_final", rand::thread_rng().gen::<u128>());
     let temp_empty = tmpdir().join(PathBuf::from(rand_name));
     let parsed = download_id.download_into(&temp_empty).await;
     if parsed.is_ok() {
         let final_path = download_id.get_final_path()?;
-        let final_parent = final_path.parent().expect("final path has no parent");
+        let final_parent =
+            final_path.parent().expect("final path has no parent");
         tokio::fs::create_dir_all(&final_parent).await?;
         tokio::fs::rename(&temp_empty, &final_path).await?;
     }

@@ -70,7 +70,8 @@ impl DownloadId for OSMGeolocationSearchQuery {
         }
         let mut data = vec![];
         for feature in geo_collection.features.iter() {
-            let geo_point = &feature.geometry.clone().context("no geometry?")?.value;
+            let geo_point =
+                &feature.geometry.clone().context("no geometry?")?.value;
             let geo_point = {
                 if let geojson::Value::Point(coords) = geo_point {
                     (coords[0], coords[1])
@@ -109,7 +110,9 @@ impl DownloadId for OSMGeolocationSearchQuery {
     }
 }
 
-pub async fn search_geojson_to_disk(query_str: &str) -> Result<std::path::PathBuf> {
+pub async fn search_geojson_to_disk(
+    query_str: &str,
+) -> Result<std::path::PathBuf> {
     let download_id = OSMGeolocationSearchQuery {
         query_str: query_str.to_string(),
     };

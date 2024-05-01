@@ -251,11 +251,14 @@ pub fn get_tile_server(server_name: &str) -> anyhow::Result<TileServerConfig> {
     let server_config = DB_TILE_SERVER_CONFIGS
         .get(&server_name.to_owned())
         .context("db get error")?
-        .with_context(|| format!("server_name not found: '{}'", &server_name))?;
+        .with_context(|| {
+            format!("server_name not found: '{}'", &server_name)
+        })?;
     Ok(server_config)
 }
 
-pub fn get_all_socks5_scrapers() -> anyhow::Result<Vec<Socks5ProxyScraperConfig>> {
+pub fn get_all_socks5_scrapers() -> anyhow::Result<Vec<Socks5ProxyScraperConfig>>
+{
     let mut servers = Vec::<Socks5ProxyScraperConfig>::new();
     for k in DB_SOCKS_SCRAPER_CONFIGS.iter() {
         let (_, value) = k?;
@@ -272,9 +275,11 @@ pub async fn tempfile(name: &str) -> anyhow::Result<async_tempfile::TempFile> {
     let tmp_parent = tmpdir();
     tokio::fs::create_dir_all(&tmp_parent).await?;
     use rand::Rng;
-    let rand_name = format!("tmp.{}.{}", rand::thread_rng().gen::<u128>(), name);
+    let rand_name =
+        format!("tmp.{}.{}", rand::thread_rng().gen::<u128>(), name);
     let temp_file =
-        async_tempfile::TempFile::new_with_name_in(rand_name, tmp_parent).await?;
+        async_tempfile::TempFile::new_with_name_in(rand_name, tmp_parent)
+            .await?;
     Ok(temp_file)
 }
 

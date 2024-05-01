@@ -2,7 +2,9 @@ use crate::bevy_tokio_tasks::TokioTasksRuntime;
 use crate::geo_trig;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::render::render_resource::{
+    Extent3d, TextureDimension, TextureFormat,
+};
 
 pub struct EarthFetchPlugin {}
 
@@ -22,8 +24,10 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
     let img = reqwest::get(tile_url).await.unwrap().bytes().await.unwrap();
     info!("downlaoded {:?}: {} bytes", &tile, img.len());
 
-    let img_reader =
-        image::io::Reader::with_format(std::io::Cursor::new(img), image::ImageFormat::Jpeg);
+    let img_reader = image::io::Reader::with_format(
+        std::io::Cursor::new(img),
+        image::ImageFormat::Jpeg,
+    );
     let img = img_reader.decode().unwrap();
 
     let img = Image::from_dynamic(
@@ -40,14 +44,16 @@ fn uv_debug_texture() -> Image {
     const TEXTURE_SIZE: usize = 8;
 
     let mut palette: [u8; 32] = [
-        255, 102, 159, 255, 255, 159, 102, 255, 236, 255, 102, 255, 121, 255, 102, 255, 102, 255,
-        198, 255, 102, 198, 255, 255, 121, 102, 255, 255, 236, 102, 255, 255,
+        255, 102, 159, 255, 255, 159, 102, 255, 236, 255, 102, 255, 121, 255,
+        102, 255, 102, 255, 198, 255, 102, 198, 255, 255, 121, 102, 255, 255,
+        236, 102, 255, 255,
     ];
 
     let mut texture_data = [0; TEXTURE_SIZE * TEXTURE_SIZE * 4];
     for y in 0..TEXTURE_SIZE {
         let offset = TEXTURE_SIZE * y * 4;
-        texture_data[offset..(offset + TEXTURE_SIZE * 4)].copy_from_slice(&palette);
+        texture_data[offset..(offset + TEXTURE_SIZE * 4)]
+            .copy_from_slice(&palette);
         palette.rotate_right(4);
     }
     Image::new_fill(
@@ -72,8 +78,9 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
 
             let mesh_handle = ctx
                 .run_on_main_thread(move |ctx| {
-                    let mut meshes = ctx.world.get_resource_mut::<Assets<Mesh>>().unwrap();
-                    
+                    let mut meshes =
+                        ctx.world.get_resource_mut::<Assets<Mesh>>().unwrap();
+
                     meshes.add(mesh)
                 })
                 .await;
@@ -82,9 +89,9 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
 
             let image_handle = ctx
                 .run_on_main_thread(move |ctx| {
-                    let mut images = ctx.world.get_resource_mut::<Assets<Image>>().unwrap();
+                    let mut images =
+                        ctx.world.get_resource_mut::<Assets<Image>>().unwrap();
 
-                    
                     images.add(image)
                 })
                 .await;
@@ -98,7 +105,6 @@ fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
                         .get_resource_mut::<Assets<StandardMaterial>>()
                         .unwrap();
 
-                    
                     materials.add(StandardMaterial {
                         base_color_texture: Some(image_handle),
                         ..default()

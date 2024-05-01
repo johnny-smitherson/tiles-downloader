@@ -17,7 +17,8 @@ struct UpdateTicks {
 
 impl UpdateTicks {
     fn increment_ticks(&self) -> usize {
-        let new_ticks = self.ticks.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
+        let new_ticks =
+            self.ticks.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
         self.update_watch_tx
             .send(())
             .expect("Failed to send update_watch channel message");
@@ -47,9 +48,9 @@ impl Default for TokioTasksPlugin {
                 #[cfg(target_arch = "wasm32")]
                 let mut runtime = tokio::runtime::Builder::new_current_thread();
                 runtime.enable_all();
-                runtime
-                    .build()
-                    .expect("Failed to create Tokio runtime for background tasks")
+                runtime.build().expect(
+                    "Failed to create Tokio runtime for background tasks",
+                )
             }),
         }
     }
@@ -58,13 +59,18 @@ impl Default for TokioTasksPlugin {
 impl Plugin for TokioTasksPlugin {
     fn build(&self, app: &mut App) {
         let ticks = Arc::new(AtomicUsize::new(0));
-        let (update_watch_tx, update_watch_rx) = tokio::sync::watch::channel(());
+        let (update_watch_tx, update_watch_rx) =
+            tokio::sync::watch::channel(());
         let runtime = (self.make_runtime)();
         app.insert_resource(UpdateTicks {
             ticks: ticks.clone(),
             update_watch_tx,
         });
-        app.insert_resource(TokioTasksRuntime::new(ticks, runtime, update_watch_rx));
+        app.insert_resource(TokioTasksRuntime::new(
+            ticks,
+            runtime,
+            update_watch_rx,
+        ));
         app.add_systems(Update, tick_runtime_update);
     }
 }
@@ -113,7 +119,8 @@ impl TokioTasksRuntime {
         runtime: Runtime,
         update_watch_rx: tokio::sync::watch::Receiver<()>,
     ) -> Self {
-        let (update_run_tx, update_run_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (update_run_tx, update_run_rx) =
+            tokio::sync::mpsc::unbounded_channel();
 
         Self(Box::new(TokioTasksRuntimeInner {
             runtime,
@@ -154,7 +161,11 @@ impl TokioTasksRuntime {
     }
 
     /// Execute all of the requested runnables on the main thread.
-    pub(crate) fn execute_main_thread_work(&mut self, world: &mut World, current_tick: usize) {
+    pub(crate) fn execute_main_thread_work(
+        &mut self,
+        world: &mut World,
+        current_tick: usize,
+    ) {
         // Running this single future which yields once allows the runtime to process tasks
         // if the runtime is a current_thread runtime. If its a multi-thread runtime then
         // this isn't necessary but is harmless.
@@ -216,7 +227,10 @@ impl TaskContext {
     /// main Bevy [`World`], allowing it to update any resources or entities that it wants. The callback can
     /// report results back to the background thread by returning an output value, which will then be returned from
     /// this async function once the callback runs.
-    pub async fn run_on_main_thread<Runnable, Output>(&mut self, runnable: Runnable) -> Output
+    pub async fn run_on_main_thread<Runnable, Output>(
+        &mut self,
+        runnable: Runnable,
+    ) -> Output
     where
         Runnable: FnOnce(MainThreadContext) -> Output + Send + 'static,
         Output: Send + 'static,

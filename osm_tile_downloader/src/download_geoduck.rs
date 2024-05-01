@@ -50,7 +50,9 @@ impl DownloadId for OvertureMapsSegment {
         })
     }
     fn is_valid_request(&self) -> Result<()> {
-        if !OVERT_THEMES.contains(&(self.theme.to_owned(), self._type.to_owned())) {
+        if !OVERT_THEMES
+            .contains(&(self.theme.to_owned(), self._type.to_owned()))
+        {
             anyhow::bail!(
                 "THEME/TYPE NOT FOUND: {}/{}, valid themes: {:?}",
                 self.theme,
@@ -109,10 +111,11 @@ impl DownloadId for OvertureMapsSegment {
     fn download_into(
         &self,
         tmp_file: &Path,
-    ) -> impl std::future::Future<Output = Result<Self::TParseResult>> + std::marker::Send
-    {
-        let tmp_file =
-            std::path::PathBuf::from(tmp_file.to_str().unwrap().replace('\\', "/"));
+    ) -> impl std::future::Future<Output = Result<Self::TParseResult>>
+           + std::marker::Send {
+        let tmp_file = std::path::PathBuf::from(
+            tmp_file.to_str().unwrap().replace('\\', "/"),
+        );
         let tmp_file2 = std::path::PathBuf::from(&tmp_file);
         let tmp_file3 = std::path::PathBuf::from(&tmp_file);
         let bbox = geo_bbox(self.x, self.y, self.z).expand_relative(0.52);
@@ -129,8 +132,8 @@ impl DownloadId for OvertureMapsSegment {
             let rv = tokio::task::spawn_blocking(move || {
                 if let Some(parent) = maybe_parent_path {
                     overt_geoduck::crop_geoparquet(
-                        &parent, bbox.x_min, bbox.x_max, bbox.y_min, bbox.y_max,
-                        &tmp_file2,
+                        &parent, bbox.x_min, bbox.x_max, bbox.y_min,
+                        bbox.y_max, &tmp_file2,
                     )
                 } else {
                     overt_geoduck::download_geoparquet(

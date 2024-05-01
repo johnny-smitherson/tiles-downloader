@@ -126,14 +126,21 @@ pub fn generate_mesh(tris: Vec<TriangleData>) -> Mesh {
 impl TileCoord {
     pub fn geo_bbox(&self) -> GeoBBox {
         let rv = GeoBBox {
-            lon_west: (self.x as f64 / 2.0_f64.powi(self.z as i32)) * 360.0 - 180.0,
-            lon_east: ((self.x + 1) as f64 / 2.0_f64.powi(self.z as i32)) * 360.0 - 180.0,
-            lat_south: (PI - ((self.y + 1) as f64) / 2.0_f64.powi(self.z as i32) * 2.0 * PI)
+            lon_west: (self.x as f64 / 2.0_f64.powi(self.z as i32)) * 360.0
+                - 180.0,
+            lon_east: ((self.x + 1) as f64 / 2.0_f64.powi(self.z as i32))
+                * 360.0
+                - 180.0,
+            lat_south: (PI
+                - ((self.y + 1) as f64) / 2.0_f64.powi(self.z as i32)
+                    * 2.0
+                    * PI)
                 .sinh()
                 .atan()
                 * 180.0
                 / PI,
-            lat_north: (PI - (self.y as f64) / 2.0_f64.powi(self.z as i32) * 2.0 * PI)
+            lat_north: (PI
+                - (self.y as f64) / 2.0_f64.powi(self.z as i32) * 2.0 * PI)
                 .sinh()
                 .atan()
                 * 180.0

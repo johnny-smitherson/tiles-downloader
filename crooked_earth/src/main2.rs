@@ -68,31 +68,37 @@ fn spawn_tasks(mut commands: Commands) {
                     // info!("before sleep: {:?}", &duration);
                     // thread::sleep(duration);
 
-                    let body = reqwest::get("http://localhost:8000/health_check")
-                        .await
-                        .unwrap()
-                        .text()
-                        .await
-                        .unwrap();
+                    let body =
+                        reqwest::get("http://localhost:8000/health_check")
+                            .await
+                            .unwrap()
+                            .text()
+                            .await
+                            .unwrap();
 
                     println!("body = {body:?}");
 
                     // Such hard work, all done!
-                    let transform = Transform::from_xyz(x as f32, y as f32, z as f32);
+                    let transform =
+                        Transform::from_xyz(x as f32, y as f32, z as f32);
                     let mut command_queue = CommandQueue::default();
 
                     // we use a raw command queue to pass a FnOne(&mut World) back to be
                     // applied in a deferred manner.
                     command_queue.push(move |world: &mut World| {
                         let (box_mesh_handle, box_material_handle) = {
-                            let mut system_state = SystemState::<(
-                                Res<BoxMeshHandle>,
-                                Res<BoxMaterialHandle>,
-                            )>::new(world);
+                            let mut system_state =
+                                SystemState::<(
+                                    Res<BoxMeshHandle>,
+                                    Res<BoxMaterialHandle>,
+                                )>::new(world);
                             let (box_mesh_handle, box_material_handle) =
                                 system_state.get_mut(world);
 
-                            (box_mesh_handle.clone(), box_material_handle.clone())
+                            (
+                                box_mesh_handle.clone(),
+                                box_material_handle.clone(),
+                            )
                         };
 
                         world
@@ -124,9 +130,14 @@ fn spawn_tasks(mut commands: Commands) {
 /// tasks to see if they're complete. If the task is complete it takes the result, adds a
 /// new [`PbrBundle`] of components to the entity using the result from the task's work, and
 /// removes the task component from the entity.
-fn handle_tasks(mut commands: Commands, mut transform_tasks: Query<&mut ComputeTransform>) {
+fn handle_tasks(
+    mut commands: Commands,
+    mut transform_tasks: Query<&mut ComputeTransform>,
+) {
     for mut task in &mut transform_tasks {
-        if let Some(mut commands_queue) = block_on(future::poll_once(&mut task.0)) {
+        if let Some(mut commands_queue) =
+            block_on(future::poll_once(&mut task.0))
+        {
             // append the returned command queue to have it execute later
             commands.append(&mut commands_queue);
             info!(".");

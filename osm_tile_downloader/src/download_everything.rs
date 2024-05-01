@@ -40,7 +40,11 @@ fn tiles_around(x: u64, y: u64, z: u8, extra: u8) -> Vec<(u64, u64)> {
         for dy in -(extra as i64)..=(extra as i64) {
             let x = x + dx;
             let y = y + dy;
-            if x > 0 && y > 0 && x < 2_i64.pow(z.into()) && y < 2_i64.pow(z.into()) {
+            if x > 0
+                && y > 0
+                && x < 2_i64.pow(z.into())
+                && y < 2_i64.pow(z.into())
+            {
                 v.push((x as u64, y as u64));
             }
         }
@@ -115,9 +119,10 @@ async fn download_all_geoduck(
         for (theme, _type) in download_geoduck::OVERT_THEMES.iter() {
             // let item_name =
             //     format!("geoduck {}/{} z={} x={} y={}", theme, _type, z, x, y);
-            let rv =
-                download_geoduck::download_geoduck_to_disk(theme, _type, x, y, z)
-                    .await;
+            let rv = download_geoduck::download_geoduck_to_disk(
+                theme, _type, x, y, z,
+            )
+            .await;
             let url = rocket::uri!(http_api::get_overt_geoduck(
                 theme = theme,
                 o_type = _type,
@@ -128,7 +133,9 @@ async fn download_all_geoduck(
             .path()
             .to_string();
             let file_size_mb = if let Ok(p) = &rv {
-                tokio::fs::metadata(p).await?.file_size() as f64 / 1024.0 / 1024.0
+                tokio::fs::metadata(p).await?.file_size() as f64
+                    / 1024.0
+                    / 1024.0
             } else {
                 0.0
             };
@@ -158,8 +165,9 @@ pub async fn download_everything(
         + v_tiles.iter().filter(|x| !x.success).count();
     let success_count = v_geoducks.iter().filter(|x| x.success).count()
         + v_tiles.iter().filter(|x| x.success).count();
-    let total_size_mb: f64 = v_tiles.iter().map(|x| x.file_size_mb).sum::<f64>()
-        + v_geoducks.iter().map(|x| x.file_size_mb).sum::<f64>();
+    let total_size_mb: f64 =
+        v_tiles.iter().map(|x| x.file_size_mb).sum::<f64>()
+            + v_geoducks.iter().map(|x| x.file_size_mb).sum::<f64>();
     Ok(DownloadEverythingSummary {
         success_count: success_count as u64,
         error_count: fail_count as u64,

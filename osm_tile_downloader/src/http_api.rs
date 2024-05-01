@@ -43,9 +43,9 @@ async fn geo_search_json(q_location: &str) -> rocket_anyhow::Result<NamedFile> {
     let geojson_path =
         download_geosearch::search_geojson_to_disk(q_location).await?;
 
-    Ok(NamedFile::open(&geojson_path)
-        .await
-        .with_context(|| format!("file missing from disk: {:?}", &geojson_path))?)
+    Ok(NamedFile::open(&geojson_path).await.with_context(|| {
+        format!("file missing from disk: {:?}", &geojson_path)
+    })?)
 }
 
 #[get("/api/tile/<server_name>/<z>/<x>/<y>/<extension>")]
@@ -81,7 +81,8 @@ async fn get_overt_geoduck(
     z: u8,
 ) -> rocket_anyhow::Result<Option<NamedFile>> {
     let path =
-        download_geoduck::download_geoduck_to_disk(theme, o_type, x, y, z).await?;
+        download_geoduck::download_geoduck_to_disk(theme, o_type, x, y, z)
+            .await?;
     Ok(Some(NamedFile::open(&path).await.with_context(|| {
         format!("file missing from disk: {:?}", &path)
     })?))

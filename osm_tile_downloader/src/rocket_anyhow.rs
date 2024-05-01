@@ -27,7 +27,10 @@ where
 }
 
 impl<'r> Responder<'r, 'static> for Error {
-    fn respond_to(self, _request: &'r Request<'_>) -> response::Result<'static> {
+    fn respond_to(
+        self,
+        _request: &'r Request<'_>,
+    ) -> response::Result<'static> {
         use std::io::Cursor;
 
         use rocket::http::ContentType;

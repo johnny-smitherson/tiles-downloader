@@ -64,7 +64,8 @@ async fn proxy_info() -> rocket_anyhow::Result<Template> {
 
 #[get("/geo/<q_location>")]
 async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
-    let geo_search_results = download_geosearch::search_geojson(q_location).await?;
+    let geo_search_results =
+        download_geosearch::search_geojson(q_location).await?;
     if geo_search_results.is_empty() {
         return Err(anyhow!(
             "no features found after searching for '{}'",
@@ -93,10 +94,11 @@ async fn geo_index(q_location: &str) -> rocket_anyhow::Result<Template> {
                     );
                     let server_name = srv.name.clone();
                     let ext = srv.img_type.clone();
-                    let overlay = crate::download_tile::OverlayDrawCoordinates {
-                        point: Some(feature.geo_point),
-                        bbox: Some(feature.bbox),
-                    };
+                    let overlay =
+                        crate::download_tile::OverlayDrawCoordinates {
+                            point: Some(feature.geo_point),
+                            bbox: Some(feature.bbox),
+                        };
                     let the_uri = uri!(http_api::get_tile_with_overlay(
                         server_name = server_name,
                         x = x,

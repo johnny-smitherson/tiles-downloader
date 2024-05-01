@@ -191,7 +191,8 @@ pub async fn draw_overlay_on_tile(
 ) -> Result<Vec<u8>> {
     let bytes = tokio::fs::read(path).await?;
 
-    let img_reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    let img_reader =
+        ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     let img = img_reader.decode()?;
     let image_format = match img_type {
         "png" => image::ImageFormat::Png,

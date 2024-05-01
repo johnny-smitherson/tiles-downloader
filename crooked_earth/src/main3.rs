@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use bevy::prelude::{
-    App, Camera2dBundle, ClearColor, Color, Commands, DefaultPlugins, ResMut, Update,
+    App, Camera2dBundle, ClearColor, Color, Commands, DefaultPlugins, ResMut,
+    Update,
 };
 
 use bevy::app::Startup;
@@ -31,7 +32,9 @@ fn demo(runtime: ResMut<TokioTasksRuntime>, mut commands: Commands) {
         let mut color_index = 0;
         loop {
             ctx.run_on_main_thread(move |ctx| {
-                if let Some(mut clear_color) = ctx.world.get_resource_mut::<ClearColor>() {
+                if let Some(mut clear_color) =
+                    ctx.world.get_resource_mut::<ClearColor>()
+                {
                     clear_color.0 = COLORS[color_index];
                     println!("Changed clear color to {:?}", clear_color.0);
                 }

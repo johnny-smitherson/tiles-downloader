@@ -1,7 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(
-    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
+    Copy,
+    Deserialize,
+    Clone,
+    Debug,
+    Serialize,
+    PartialEq,
+    FromForm,
+    UriDisplayQuery,
 )]
 pub struct GeoPoint {
     pub x_lon: f64,
@@ -9,7 +16,14 @@ pub struct GeoPoint {
 }
 
 #[derive(
-    Copy, Deserialize, Clone, Debug, Serialize, PartialEq, FromForm, UriDisplayQuery,
+    Copy,
+    Deserialize,
+    Clone,
+    Debug,
+    Serialize,
+    PartialEq,
+    FromForm,
+    UriDisplayQuery,
 )]
 pub struct GeoBBOX {
     pub x_min: f64,
@@ -43,7 +57,8 @@ pub fn tile_index_float(zoom: u8, lon_deg: f64, lat_deg: f64) -> (f64, f64) {
     let lat_rad = lat_deg.to_radians();
 
     let tile_x = {
-        let deg = (lon_rad + std::f64::consts::PI) / (2f64 * std::f64::consts::PI);
+        let deg =
+            (lon_rad + std::f64::consts::PI) / (2f64 * std::f64::consts::PI);
 
         deg * 2f64.powi(zoom as i32)
     };
