@@ -11,7 +11,7 @@ pub struct TileCoord {
     pub z: u8,
 }
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone)]
 pub struct GeoBBox {
     lon_west: f64,
     lat_south: f64,
