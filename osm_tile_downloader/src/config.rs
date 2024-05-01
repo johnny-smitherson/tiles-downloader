@@ -38,7 +38,7 @@ pub struct StatCounterVal {
     edit_at: f64,
 }
 
-const STAT_COUNTER_ENTRY_TTL: f64 = 3600.0;
+const STAT_COUNTER_ENTRY_TTL: f64 = 7300.0;
 
 impl StatCounterVal {
     fn increment(&mut self, event: &str) {

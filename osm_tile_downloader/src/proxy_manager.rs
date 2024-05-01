@@ -13,7 +13,7 @@ lazy_static::lazy_static! {
     pub static ref DB_SCRAPER_LAST_REFRESH:  typed_sled::Tree::<String, f64> = typed_sled::Tree::<String, f64>::open(&SLED_DB, "socks5_scraper_last_refresh_v7_f64");
     pub static ref DB_SOCKS5_PROXY_ENTRY:  typed_sled::Tree::<String, Socks5ProxyEntry> = typed_sled::Tree::<String, Socks5ProxyEntry>::open(&SLED_DB, "socks5_proxy_entry_v5");
 }
-const SCRAPER_REFRESH_SECONDS: f64 = 300.0;
+const SCRAPER_REFRESH_SECONDS: f64 = 1200.0;
 const ENTRY_DELETE_SECONDS: f64 = 7200.0;
 use crate::config::get_current_timestamp;
 
@@ -95,14 +95,19 @@ async fn parse_socks5_proxy_list(path: &Path) -> anyhow::Result<Vec<String>> {
         })
         .collect();
     let text: String = String::from_utf8_lossy(text.as_slice()).to_string();
-    let text = text.trim()
-    .split(' ')
-    .filter(|s| !s.is_empty())
-    .collect::<Vec<_>>()
-    .join(" ");
+    let text = text
+        .trim()
+        .split(' ')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
 
     let text = text;
-    tokio::fs::write(format!("{}.clean.txt", path.to_str().unwrap()), text.as_bytes()).await?;
+    tokio::fs::write(
+        format!("{}.clean.txt", path.to_str().unwrap()),
+        text.as_bytes(),
+    )
+    .await?;
     let mut found_socks = Vec::<String>::new();
     for cap in re.captures_iter(text.as_str()) {
         let a: i32 = cap[1].parse().unwrap();

@@ -61,7 +61,7 @@ fn spawn_tasks(mut commands: Commands) {
                 // executed in the background, and the Task future returned by
                 // spawn() can be used to poll for the result
                 let entity = commands.spawn_empty().id();
-                let task = thread_pool.spawn(async move {
+                let fut = async move {
                     // let mut rng = rand::thread_rng();
 
                     // let duration = Duration::from_secs_f32(rng.gen_range(0.15..2.2));
@@ -111,7 +111,8 @@ fn spawn_tasks(mut commands: Commands) {
                     });
 
                     command_queue
-                });
+                };
+                let task = thread_pool.spawn(fut);
 
                 // Spawn new entity and add our new task as a component
                 commands.entity(entity).insert(ComputeTransform(task));
