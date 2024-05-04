@@ -165,13 +165,13 @@ pub fn download_geoparquet(
     }
     let conn = get_duck_connection()?;
     let sql_create = dt.sql_create_view_from_web();
-    eprintln!("geoduck: creating online view for {:?} \n | sql = {}", dt, sql_create);
+    eprintln!("geoduck: creating online view for {:?}", dt);
     conn.execute_batch(&sql_create)?;
 
     let sql_select_to_json = OvertDataType::sql_copy_to_parquet(dt.view_name().as_str(), parquet_out, xmin, xmax, ymin, ymax);
     eprintln!(
-        "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n | sql = {}",
-        dt, xmin, xmax, ymin, ymax, &sql_select_to_json
+        "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n",
+        dt, xmin, xmax, ymin, ymax
     );
     conn.execute_batch(&sql_select_to_json)?;
     eprintln!("geoduck: finished downloading file {}", parquet_out);
@@ -205,13 +205,13 @@ pub fn crop_geoparquet(
 
     let conn = get_duck_connection()?;
     let sql_create = OvertDataType::sql_create_view_from_disk("crop_view", parquet_in);
-    eprintln!("geoduck: creating offline view for {:?} \n | sql = {}", parquet_in, sql_create);
+    eprintln!("geoduck: creating offline view for {:?} \n", parquet_in);
     conn.execute_batch(&sql_create)?;
 
     let sql_select_to_json = OvertDataType::sql_copy_to_parquet("crop_view", parquet_out, xmin, xmax, ymin, ymax);
     eprintln!(
-        "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n | sql = {}",
-        parquet_in, xmin, xmax, ymin, ymax, &sql_select_to_json
+        "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n",
+        parquet_in, xmin, xmax, ymin, ymax
     );
     conn.execute_batch(&sql_select_to_json)?;
     eprintln!("geoduck: finished cropping into file {}", parquet_out);

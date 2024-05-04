@@ -119,6 +119,48 @@ url = "http://pubproxy.com/api/proxy?format=txt&type=socks5&limit=5"
 name = "pubproxy.com"
 extract_method = "txt"
 
+
+######################################################################
+# TILES - NOT EARTH
+######################################################################
+
+# [[tile_servers]]
+# name = "google_moon_apollo"
+# comment = "https://www.google.com/moon/"
+# url = "https://mw1.google.com/mw-planetary/lunar/lunarmaps_v1/apollo/{z}/{x}/{y}.jpg"
+# width = 256
+# height = 256
+# max_level = 9
+# img_type = "jpg"
+# map_type = "sat_moon_historic"
+
+
+[[tile_servers]]
+name = "google_moon_elevation"
+comment = "https://www.google.com/moon/"
+url = "https://mw1.google.com/mw-planetary/lunar/lunarmaps_v1/terrain/{z}/{x}/{y}.jpg"
+width = 256
+height = 256
+max_level = 7
+img_type = "jpg"
+map_type = "elevation_moon"
+
+[[tile_servers]]
+name = "google_moon"
+comment = "https://www.google.com/moon/"
+url = "https://mw1.google.com/mw-planetary/lunar/lunarmaps_v1/clem_bw/{z}/{x}/{y}.jpg"
+width = 256
+height = 256
+max_level = 9
+img_type = "jpg"
+map_type = "sat_moon"
+
+
+######################################################################
+# TILES -  EARTH - OSM
+######################################################################
+
+
 [[tile_servers]]
 name = "osm_tiles"
 comment = "https://openstreetmap.org"
@@ -138,6 +180,22 @@ height = 512
 max_level = 12
 img_type = "png"
 map_type = "tiles"
+
+
+[[tile_servers]]
+name = "opentopomap_tiles"
+comment = "opentopomap.org"
+url = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+servers = ["a", "b", "c"]
+width = 256
+height = 256
+img_type = "png"
+map_type = "tiles"
+max_level = 17
+
+######################################################################
+# TILES -  EARTH - GOOGL
+######################################################################
 
 
 [[tile_servers]]
@@ -172,8 +230,37 @@ max_level = 21
 img_type = "jpg"
 map_type = "hybrid"
 
-# [yandex.overlay]
-# url = https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&v=24.04.13-1-b240404173730&x=10&y=6&z=4&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction
+######################################################################
+# TILES -  EARTH - MICRO$
+######################################################################
+
+
+[[tile_servers]]
+url = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{bing_quadkey}.jpeg?g=14388&n=z&prx=1"
+comment = "https://www.bing.com/maps/"
+name = "bing_sat"
+max_level = 20
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "sat"
+
+[[tile_servers]]
+name = "bing_tiles"
+comment = "https://www.bing.com/maps/"
+url = "https://t.ssl.ak.dynamic.tiles.virtualearth.net/comp/ch/{bing_quadkey}?mkt=en-US&it=G,LC,BF,RL&shading=hill&jp=0&n=t&og=2457&cstl=s23&o=jpg&ur=de"
+max_level = 15 # above this, they respond with PNG. They don't have overlay either
+width = 256
+height = 256
+img_type = "jpg"
+map_type = "tiles"
+
+
+
+######################################################################
+# TILES -  EARTH - NASA WEATRHER
+######################################################################
+
 
 [[tile_servers]]
 name = "nasa_max9_2024_04_13_sat"
@@ -215,6 +302,12 @@ height = 256
 img_type = "jpg"
 map_type = "sat"
 
+
+######################################################################
+# TILES -  EARTH - ARCGIS / USGS
+######################################################################
+
+
 [[tile_servers]]
 name = "arcgis_sat"
 comment = "https://earthexplorer.usgs.gov/"
@@ -235,37 +328,10 @@ height = 256
 img_type = "jpg"
 map_type = "hillshade"
 
-[[tile_servers]]
-url = "https://t.ssl.ak.tiles.virtualearth.net/tiles/a{bing_quadkey}.jpeg?g=14388&n=z&prx=1"
-comment = "https://www.bing.com/maps/"
-name = "bing_sat"
-max_level = 20
-width = 256
-height = 256
-img_type = "jpg"
-map_type = "sat"
 
-[[tile_servers]]
-name = "bing_tiles"
-comment = "https://www.bing.com/maps/"
-url = "https://t.ssl.ak.dynamic.tiles.virtualearth.net/comp/ch/{bing_quadkey}?mkt=en-US&it=G,LC,BF,RL&shading=hill&jp=0&n=t&og=2457&cstl=s23&o=jpg&ur=de"
-max_level = 15 # above this, they respond with PNG. They don't have overlay either
-width = 256
-height = 256
-img_type = "jpg"
-map_type = "tiles"
-
-
-[[tile_servers]]
-name = "opentopomap_tiles"
-comment = "opentopomap.org"
-url = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-servers = ["a", "b", "c"]
-width = 256
-height = 256
-img_type = "png"
-map_type = "tiles"
-max_level = 17
+######################################################################
+# TILES -  EARTH - COMMUNISM
+######################################################################
 
 [[tile_servers]]
 name = "yandex_tiles"
@@ -277,6 +343,8 @@ max_level = 21
 img_type = "png"
 map_type = "tiles"
 
+# [yandex.overlay]
+# url = https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&v=24.04.13-1-b240404173730&x=10&y=6&z=4&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction
 
 [[tile_servers]]
 name = "yandex_badsat"

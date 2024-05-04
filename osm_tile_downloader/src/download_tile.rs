@@ -217,7 +217,7 @@ pub async fn draw_overlay_on_tile(
     let bbox1 = tile2pixel(bbox1);
     let b_bbox = [bbox0, bbox1, (bbox1.0, bbox0.1), (bbox0.0, bbox1.1)];
 
-    eprintln!("point: {:?}  bbox: {:?}", b_px, b_bbox);
+    // eprintln!("point: {:?}  bbox: {:?}", b_px, b_bbox);
 
     let img_bytes = spawn_blocking(move || {
         let mut img = img.into_rgb8();
