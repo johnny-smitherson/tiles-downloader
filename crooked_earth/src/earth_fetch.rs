@@ -17,7 +17,10 @@ impl Plugin for EarthFetchPlugin {
 }
 
 async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
-    let mesh = geo_trig::generate_mesh(tile.geo_bbox().to_tris(crate::earth_camera::EARTH_RADIUS_KM));
+    let mesh = geo_trig::generate_mesh(
+        tile.geo_bbox()
+            .to_tris(crate::earth_camera::EARTH_RADIUS_KM),
+    );
 
     let tile_url = format!(
         "http://localhost:8000/api/tile/arcgis_sat/{}/{}/{}/tile.jpg",
@@ -25,6 +28,7 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
     );
     let img = {
         let mut current_wait = 1.0;
+        let mut print_count: i32 = 0;
         loop {
             let resp = reqwest::get(&tile_url).await;
             if let Ok(resp) = resp {
@@ -34,12 +38,21 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
                     }
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs_f64(current_wait)).await;
+            tokio::time::sleep(std::time::Duration::from_secs_f64(
+                current_wait,
+            ))
+            .await;
             current_wait *= 1.1;
             current_wait += 0.1;
-            if current_wait > 10.0 {
-                current_wait = 10.0;
-                warn!("tile still not downloaded while at max wait: {:?}", &tile);
+            if current_wait > 20.0 {
+                current_wait = 20.0;
+                if print_count % 4 == 0 {
+                    warn!(
+                        "tile still not downloaded while at max wait: {:?}",
+                        &tile
+                    );
+                }
+                print_count += 1;
             }
         }
     };

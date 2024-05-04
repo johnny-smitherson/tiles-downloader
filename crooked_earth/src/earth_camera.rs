@@ -11,7 +11,7 @@ impl Plugin for EarthCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_camera);
         app.add_systems(Update, read_camera_input_events)
-		.add_systems(Update, resize_minimap);
+            .add_systems(Update, resize_minimap);
     }
 }
 
@@ -38,7 +38,7 @@ impl EarthCamera {
     }
     fn get_sun(&self) -> Transform {
         let xyz = geo_trig::gps_to_cartesian(
-            self.geo_x_deg + 15.0,
+            self.geo_x_deg + 35.0,
             self.geo_y_deg / 3.0,
         )
         .normalize();
@@ -58,7 +58,7 @@ impl EarthCamera {
         while self.geo_x_deg > 180.0 {
             self.geo_x_deg -= 360.0;
         }
-        if self.geo_y_deg >MAX_CAMERA_Y_DEG {
+        if self.geo_y_deg > MAX_CAMERA_Y_DEG {
             self.geo_y_deg = MAX_CAMERA_Y_DEG;
         }
         if self.geo_y_deg < -MAX_CAMERA_Y_DEG {
@@ -67,7 +67,8 @@ impl EarthCamera {
     }
     fn accept_event(&mut self, ev: &CameraMoveEvent) {
         let speed = 15.0 / EARTH_RADIUS_KM;
-        let x_speed = speed  * self.geo_alt_km / self.geo_y_deg.to_radians().cos();
+        let x_speed =
+            speed * self.geo_alt_km / self.geo_y_deg.to_radians().cos();
         let y_speed = speed * self.geo_alt_km;
         let z_exp_speed = 0.3;
         match ev.direction {
@@ -75,7 +76,7 @@ impl EarthCamera {
                 self.geo_y_deg += ev.value * y_speed;
             }
             crate::input_events::CameraMoveDirection::DOWN => {
-                self.geo_y_deg -= ev.value* y_speed;
+                self.geo_y_deg -= ev.value * y_speed;
             }
             crate::input_events::CameraMoveDirection::LEFT => {
                 self.geo_x_deg -= ev.value * x_speed;
@@ -114,7 +115,7 @@ fn read_camera_input_events(
     if events.is_empty() {
         return;
     }
-    for (mut cam, mut transform) in camera_q.iter_mut() {  
+    for (mut cam, mut transform) in camera_q.iter_mut() {
         for ev in events.iter() {
             cam.accept_event(ev);
             cam.limit_fields();
@@ -126,8 +127,7 @@ fn read_camera_input_events(
     }
 }
 
-fn setup_camera(mut commands: Commands,
-	windows: Query<&Window>,) {
+fn setup_camera(mut commands: Commands, windows: Query<&Window>) {
     let c = EarthCamera::default();
     let c_t = c.get_transform();
     let s_t = c.get_sun();
@@ -153,111 +153,107 @@ fn setup_camera(mut commands: Commands,
         Sun::default(),
     ));
 
-    use bevy_trackball::TrackballCamera;
     use bevy_trackball::prelude::Bound;
+    use bevy_trackball::TrackballCamera;
 
     let mut bound = Bound::<f32>::default();
-    bound.min_target = [-EARTH_RADIUS_KM as f32;3].into();
-    bound.max_target = [EARTH_RADIUS_KM as f32;3].into();
+    bound.min_target = [-EARTH_RADIUS_KM as f32; 3].into();
+    bound.max_target = [EARTH_RADIUS_KM as f32; 3].into();
 
-
-	bound.min_distance = 1.0;
-	bound.max_distance = EARTH_RADIUS_KM as f32 * 3.0;
+    bound.min_distance = 1.0;
+    bound.max_distance = EARTH_RADIUS_KM as f32 * 3.0;
     let window = windows.single();
     let size = window.resolution.physical_width() / 4;
 
     commands.spawn((
-		get_trackball_controller_no_keys(),
-		TrackballCamera::look_at(Vec3::ZERO, c_t.translation, Vec3::Y)
-			.with_clamp(bound),
-		Camera3dBundle {
-			camera: Camera {
-				order: 1,
-				clear_color: ClearColorConfig::None,
-				viewport: Some(bevy::render::camera::Viewport {
-					physical_position: UVec2::new(
-						window.resolution.physical_width() - size,
-						window.resolution.physical_height() - size,
-					),
-					physical_size: UVec2::new(size, size),
-					..default()
-				}),
-				..default()
-			},
-			..default()
-		},
-		MinimapCamera,
-	));
+        get_trackball_controller_no_keys(),
+        TrackballCamera::look_at(Vec3::ZERO, c_t.translation, Vec3::Y)
+            .with_clamp(bound),
+        Camera3dBundle {
+            camera: Camera {
+                order: 1,
+                clear_color: ClearColorConfig::None,
+                viewport: Some(bevy::render::camera::Viewport {
+                    physical_position: UVec2::new(
+                        window.resolution.physical_width() - size,
+                        window.resolution.physical_height() - size,
+                    ),
+                    physical_size: UVec2::new(size, size),
+                    ..default()
+                }),
+                ..default()
+            },
+            ..default()
+        },
+        MinimapCamera,
+    ));
 }
 
-
 fn get_trackball_controller_no_keys() -> TrackballController {
+    use bevy_trackball::TrackballInput;
     use bevy_trackball::TrackballVelocity;
     use bevy_trackball::TrackballWheelUnit;
-    use bevy_trackball::TrackballInput;
     let mut trackball_controller = TrackballController::default();
-    trackball_controller.input = 
-    TrackballInput {
+    trackball_controller.input = TrackballInput {
         velocity: TrackballVelocity::default(),
         wheel_unit: TrackballWheelUnit::default(),
-    
+
         focus: true,
-    
+
         gamer_key: None,
         ortho_key: Some(KeyCode::KeyP),
-    
+
         reset_key: Some(KeyCode::Enter),
-    
-        first_key:None,
+
+        first_key: None,
         first_button: Some(MouseButton::Middle),
         first_left_key: Some(KeyCode::ArrowLeft),
         first_right_key: Some(KeyCode::ArrowRight),
         first_up_key: Some(KeyCode::ArrowUp),
         first_down_key: Some(KeyCode::ArrowDown),
-    
+
         orbit_button: Some(MouseButton::Left),
         screw_left_key: None,
-        screw_right_key:None,
+        screw_right_key: None,
         orbit_left_key: None,
         orbit_right_key: None,
         orbit_up_key: None,
-        orbit_down_key:None,
-    
+        orbit_down_key: None,
+
         slide_button: Some(MouseButton::Right),
         slide_up_key: None,
         slide_down_key: None,
         slide_left_key: None,
-        slide_right_key:None,
+        slide_right_key: None,
         slide_far_key: None,
         slide_near_key: None,
-    
-        scale_in_key:None,
+
+        scale_in_key: None,
         scale_out_key: None,
     };
     trackball_controller
 }
-
 
 #[derive(Component)]
 struct MinimapCamera;
 
 #[allow(clippy::needless_pass_by_value)]
 fn resize_minimap(
-	windows: Query<&Window>,
-	mut resize_events: EventReader<bevy::window::WindowResized>,
-	mut minimap: Query<&mut Camera, With<MinimapCamera>>,
+    windows: Query<&Window>,
+    mut resize_events: EventReader<bevy::window::WindowResized>,
+    mut minimap: Query<&mut Camera, With<MinimapCamera>>,
 ) {
-	for resize_event in resize_events.read() {
-		let window = windows.get(resize_event.window).unwrap();
-		let mut minimap = minimap.single_mut();
-		let size = window.resolution.physical_width() / 4;
-		minimap.viewport = Some(bevy::render::camera::Viewport {
-			physical_position: UVec2::new(
-				window.resolution.physical_width() - size,
-				window.resolution.physical_height() - size,
-			),
-			physical_size: UVec2::new(size, size),
-			..default()
-		});
-	}
+    for resize_event in resize_events.read() {
+        let window = windows.get(resize_event.window).unwrap();
+        let mut minimap = minimap.single_mut();
+        let size = window.resolution.physical_width() / 4;
+        minimap.viewport = Some(bevy::render::camera::Viewport {
+            physical_position: UVec2::new(
+                window.resolution.physical_width() - size,
+                window.resolution.physical_height() - size,
+            ),
+            physical_size: UVec2::new(size, size),
+            ..default()
+        });
+    }
 }

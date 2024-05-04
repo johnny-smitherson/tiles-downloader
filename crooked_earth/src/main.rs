@@ -17,7 +17,10 @@ use bevy::{
     window::{CursorGrabMode, PresentMode, WindowLevel, WindowTheme},
 };
 
-use bevy_screen_diagnostics::{ScreenDiagnosticsPlugin, ScreenFrameDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin};
+use bevy_screen_diagnostics::{
+    ScreenDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin,
+    ScreenFrameDiagnosticsPlugin,
+};
 
 fn main() {
     App::new()
@@ -51,16 +54,13 @@ fn main() {
         .add_plugins(ScreenDiagnosticsPlugin::default())
         .add_plugins(ScreenFrameDiagnosticsPlugin)
         .add_plugins(ScreenEntityDiagnosticsPlugin)
-
         // .add_plugins(DiagnosticVisualizerEguiPlugin::default())
         .add_plugins(TokioTasksPlugin::default())
         .add_plugins(bevy_trackball::TrackballPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
-
         .add_plugins(earth_camera::EarthCameraPlugin {})
         .add_plugins(earth_fetch::EarthFetchPlugin {})
         .add_plugins(input_events::InputEventsPlugin {})
-        
         .add_systems(Update, make_window_visiblea_after_3_frames)
         .run();
 }

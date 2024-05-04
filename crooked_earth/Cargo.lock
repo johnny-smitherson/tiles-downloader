@@ -609,6 +609,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_framepace"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0848c70deb2c17a4d10f611e7c5f569fa4f8a4d1fc01a3179a77906ff4c111b9"
+dependencies = [
+ "bevy",
+ "spin_sleep",
+]
+
+[[package]]
 name = "bevy_gilrs"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1154,6 +1164,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "big_space"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b2e70758692b61967d97145790c2ee3b016c35c4e0bb08b08a6b9b65f1a956f"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1629,8 +1648,10 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui 0.27.0",
+ "bevy_framepace",
  "bevy_screen_diagnostics",
  "bevy_trackball",
+ "big_space",
  "image 0.24.9",
  "rand",
  "reqwest",
@@ -4126,6 +4147,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
+]
+
+[[package]]
+name = "spin_sleep"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "368a978649eaf70006b082e79c832bd72556ac1393eaf564d686e919dca2347f"
+dependencies = [
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

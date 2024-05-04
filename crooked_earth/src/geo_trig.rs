@@ -28,10 +28,14 @@ impl GeoBBox {
         let uv3 = Vec2::Y;
         let uv4 = Vec2::X + Vec2::Y;
 
-        let p1 = gps_to_cartesian(self.lon_west, self.lat_north) * sphere_radius as f32;
-        let p2 = gps_to_cartesian(self.lon_east, self.lat_north)* sphere_radius as f32;
-        let p3 = gps_to_cartesian(self.lon_west, self.lat_south)* sphere_radius as f32;
-        let p4 = gps_to_cartesian(self.lon_east, self.lat_south)* sphere_radius as f32;
+        let p1 = gps_to_cartesian(self.lon_west, self.lat_north)
+            * sphere_radius as f32;
+        let p2 = gps_to_cartesian(self.lon_east, self.lat_north)
+            * sphere_radius as f32;
+        let p3 = gps_to_cartesian(self.lon_west, self.lat_south)
+            * sphere_radius as f32;
+        let p4 = gps_to_cartesian(self.lon_east, self.lat_south)
+            * sphere_radius as f32;
         vec![
             TriangleData::new([p1, p3, p2], [uv1, uv3, uv2]),
             TriangleData::new([p2, p3, p4], [uv2, uv3, uv4]),
@@ -151,7 +155,7 @@ impl TileCoord {
     }
 }
 
-const INIT_TILES_START_LEVEL: u8 = 5;
+const INIT_TILES_START_LEVEL: u8 = 2;
 
 pub fn init_tiles() -> Vec<TileCoord> {
     let mut vec = Vec::<TileCoord>::new();
