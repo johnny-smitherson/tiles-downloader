@@ -85,10 +85,10 @@ impl EarthCamera {
                 self.geo_x_deg += ev.value * x_speed;
             }
             crate::input_events::CameraMoveDirection::ZOOMIN => {
-                self.geo_alt_km *= (1.0 - z_exp_speed * ev.value);
+                self.geo_alt_km *= 1.0 - z_exp_speed * ev.value;
             }
             crate::input_events::CameraMoveDirection::ZOOMOUT => {
-                self.geo_alt_km *= (1.0 + z_exp_speed * ev.value);
+                self.geo_alt_km *= 1.0 + z_exp_speed * ev.value;
             }
         }
     }

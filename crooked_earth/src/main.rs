@@ -12,9 +12,7 @@ use bevy_tokio_tasks::TokioTasksPlugin;
 
 use bevy::{
     core::FrameCount,
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
-    prelude::*,
-    window::{CursorGrabMode, PresentMode, WindowLevel, WindowTheme},
+    window::{PresentMode, WindowTheme},
 };
 
 use bevy_screen_diagnostics::{

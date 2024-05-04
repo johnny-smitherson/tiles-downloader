@@ -56,7 +56,7 @@ fn main() {
 #[derive(Component)]
 struct Rotates(f32);
 
-const  earth_radius_m: f32 = 6.371e6;
+const EARTH_RADIUS_M: f32 = 6.371e6;
 
 fn rotate(mut rotate_query: Query<(&mut Transform, &Rotates)>) {
     for (mut transform, rotates) in rotate_query.iter_mut() {
@@ -163,7 +163,7 @@ fn when_the_sun_appears_spawn_the_planet(
     if !parent.get_single().is_ok() {
         return;
     }
-    let parent = parent.single();
+    let _parent = parent.single();
     info!("when_the_sun_appears_spawn_the_planet");
 
     let mut sphere =
@@ -183,7 +183,7 @@ fn when_the_sun_appears_spawn_the_planet(
 
     commands.spawn((
         PbrBundle {
-            mesh: sphere(earth_radius_m),
+            mesh: sphere(EARTH_RADIUS_M),
             material: earth_mat,
             transform: Transform::from_translation(earth_pos),
             ..default()
@@ -224,26 +224,26 @@ fn when_the_planet_appears_spawn_the_moon(
     let (moon_cell, moon_pos): (GridCell<i64>, _) =
         space.imprecise_translation_to_grid(Vec3::X * moon_orbit_radius_m);
 
-    commands.spawn((
-        SpatialBundle::default(),
-        GridCell::<i64>::ONE,
-        ReferenceFrame::<i64>::default(),
-        Rotates(0.001)
-    )).set_parent(parent).with_children(|commands|{
-        commands
+    commands
         .spawn((
-            PbrBundle {
-                mesh: sphere(moon_radius_m),
-                material: moon_mat,
-                transform: Transform::from_translation(moon_pos),
-                ..default()
-            },
-            moon_cell,
-            TheMoon,
+            SpatialBundle::default(),
+            GridCell::<i64>::ONE,
+            ReferenceFrame::<i64>::default(),
+            Rotates(0.001),
         ))
-        ;
-    });
-
+        .set_parent(parent)
+        .with_children(|commands| {
+            commands.spawn((
+                PbrBundle {
+                    mesh: sphere(moon_radius_m),
+                    material: moon_mat,
+                    transform: Transform::from_translation(moon_pos),
+                    ..default()
+                },
+                moon_cell,
+                TheMoon,
+            ));
+        });
 }
 
 fn when_the_planet_appears_reset_the_camera(
@@ -264,7 +264,7 @@ fn when_the_planet_appears_reset_the_camera(
     let (camera_ent, mut camera_grid, mut camera_trans) = camera_q.single_mut();
 
     let (cam_cell, cam_pos): (GridCell<i64>, _) =
-        space.imprecise_translation_to_grid(Vec3::X * (earth_radius_m + 1.0));
+        space.imprecise_translation_to_grid(Vec3::X * (EARTH_RADIUS_M + 1.0));
 
     commands.entity(camera_ent).set_parent(parent);
     *camera_grid = cam_cell;
@@ -278,7 +278,6 @@ fn when_the_planet_appears_spawn_the_ball(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     space: Res<RootReferenceFrame<i64>>,
-
 ) {
     if !parent.get_single().is_ok() {
         return;
@@ -287,12 +286,11 @@ fn when_the_planet_appears_spawn_the_ball(
     info!("when_the_planet_appears_spawn_the_ball");
 
     let mut sphere =
-    |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
-
+        |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
 
     let (ball_cell, ball_pos): (GridCell<i64>, _) = space
         .imprecise_translation_to_grid(
-            Vec3::X * (earth_radius_m + 1.0) + Vec3::NEG_Z * 5.0,
+            Vec3::X * (EARTH_RADIUS_M + 1.0) + Vec3::NEG_Z * 5.0,
         );
 
     let ball_mat = materials.add(StandardMaterial {
