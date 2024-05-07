@@ -208,6 +208,7 @@ fn spawn_root_planet_tiles(
                 // info!("assets loaded for {:?}", &tile);
                 ctx.run_on_main_thread(move |ctx| {
                     let bundle = (
+                        Name::new(format!("Planet Tile {:?}", tile.clone())),
                         PbrBundle {
                             mesh: mesh_handle,
                             material: mat_handle,
