@@ -1,0 +1,4 @@
+[env]
+CARGO_HTTP_CHECK_REVOKE="false"
+OPENSSL_DIR="/d/Program Files/OpenSSL-Win64"
+OPENSSL_LIB_DIR="/d/Program Files/OpenSSL-Win64/lib/VC/x64/MD"

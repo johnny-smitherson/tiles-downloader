@@ -12,19 +12,41 @@ pub struct EarthFetchPlugin {}
 
 impl Plugin for EarthFetchPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_load_tasks);
+        app.add_systems(Update, spawn_root_planet_tiles);
     }
 }
 
-async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
-    let mesh = geo_trig::generate_mesh(
-        tile.geo_bbox()
-            .to_tris(crate::earth_camera::EARTH_RADIUS_KM),
-    );
+#[derive(Component, Debug, Clone)]
+pub struct WebMercatorTiledPlanet {
+    pub root_zoom_level: u8,
+    pub tile_type: String,
+    pub planet_radius: f64,
+}
+
+#[derive(Component, Debug, Clone)]
+pub struct WebMercatorTile {
+    pub coord: geo_trig::TileCoord,
+}
+
+#[derive(Debug)]
+pub struct TileFetchData {
+    mesh: Mesh,
+    origin: Vec3,
+    image: Image,
+}
+
+async fn get_tile(
+    tile: geo_trig::TileCoord,
+    tile_type: &str,
+    planet_radius: f64,
+) -> TileFetchData {
+    let triangle_group = tile.geo_bbox().to_tris(planet_radius);
+    let mesh = triangle_group.generate_mesh();
+    let tile_center = triangle_group.center();
 
     let tile_url = format!(
-        "http://localhost:8000/api/tile/arcgis_sat/{}/{}/{}/tile.jpg",
-        tile.z, tile.x, tile.y
+        "http://localhost:8000/api/tile/{}/{}/{}/{}/tile.jpg",
+        tile_type, tile.z, tile.x, tile.y
     );
     let img = {
         let mut current_wait = 1.0;
@@ -56,7 +78,7 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
             }
         }
     };
-    info!("downlaoded {:?}: {} bytes", &tile, img.len());
+    // info!("downlaoded {:?}: {} bytes", &tile, img.len());
 
     let img_reader = image::io::Reader::with_format(
         std::io::Cursor::new(img),
@@ -69,7 +91,11 @@ async fn get_tile(tile: geo_trig::TileCoord) -> (Mesh, Image) {
         false,
         RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
     );
-    (mesh, img)
+    TileFetchData {
+        mesh,
+        image: img,
+        origin: tile_center,
+    }
 }
 
 /// Creates a colorful test pattern
@@ -108,66 +134,102 @@ async fn rand_sleep(ctx: &mut TaskContext) {
     let _rand_sleep = (&mut rand::thread_rng()).gen_range(1..3);
     ctx.sleep_updates(_rand_sleep).await;
 }
-fn setup_load_tasks(runtime: ResMut<TokioTasksRuntime>) {
-    for tile in geo_trig::init_tiles() {
-        let t2 = tile;
-        runtime.spawn_background_task(move |mut ctx| async move {
-            rand_sleep(&mut ctx).await;
 
-            let (mesh, image) = get_tile(t2).await;
+fn spawn_root_planet_tiles(
+    runtime: ResMut<TokioTasksRuntime>,
+    planets_q: Query<
+        (Entity, &WebMercatorTiledPlanet),
+        Added<WebMercatorTiledPlanet>,
+    >,
+) {
+    for (planet_ent, planet_info) in planets_q.iter() {
+        for tile in
+            geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
+        {
+            let t2 = tile;
+            let planet_info = planet_info.clone();
+            runtime.spawn_background_task(move |mut ctx| async move {
+                rand_sleep(&mut ctx).await;
 
-            rand_sleep(&mut ctx).await;
-
-            let mesh_handle = ctx
-                .run_on_main_thread(move |ctx| {
-                    let mut meshes =
-                        ctx.world.get_resource_mut::<Assets<Mesh>>().unwrap();
-
-                    meshes.add(mesh)
-                })
+                let tile_data = get_tile(
+                    t2,
+                    &planet_info.tile_type,
+                    planet_info.planet_radius,
+                )
                 .await;
 
-            rand_sleep(&mut ctx).await;
+                rand_sleep(&mut ctx).await;
 
-            let image_handle = ctx
-                .run_on_main_thread(move |ctx| {
-                    let mut images =
-                        ctx.world.get_resource_mut::<Assets<Image>>().unwrap();
+                let mesh_handle = ctx
+                    .run_on_main_thread(move |ctx| {
+                        let mut meshes = ctx
+                            .world
+                            .get_resource_mut::<Assets<Mesh>>()
+                            .unwrap();
 
-                    images.add(image)
-                })
-                .await;
-
-            rand_sleep(&mut ctx).await;
-
-            let mat_handle = ctx
-                .run_on_main_thread(move |ctx| {
-                    let mut materials = ctx
-                        .world
-                        .get_resource_mut::<Assets<StandardMaterial>>()
-                        .unwrap();
-
-                    materials.add(StandardMaterial {
-                        base_color_texture: Some(image_handle),
-                        ..default()
+                        meshes.add(tile_data.mesh)
                     })
+                    .await;
+
+                rand_sleep(&mut ctx).await;
+
+                let image_handle = ctx
+                    .run_on_main_thread(move |ctx| {
+                        let mut images = ctx
+                            .world
+                            .get_resource_mut::<Assets<Image>>()
+                            .unwrap();
+
+                        images.add(tile_data.image)
+                    })
+                    .await;
+
+                rand_sleep(&mut ctx).await;
+
+                let mat_handle = ctx
+                    .run_on_main_thread(move |ctx| {
+                        let mut materials = ctx
+                            .world
+                            .get_resource_mut::<Assets<StandardMaterial>>()
+                            .unwrap();
+
+                        materials.add(StandardMaterial {
+                            base_color_texture: Some(image_handle),
+
+                            perceptual_roughness: 1.0,
+                            reflectance: 0.0,
+                            ..default()
+                        })
+                    })
+                    .await;
+
+                rand_sleep(&mut ctx).await;
+
+                // info!("assets loaded for {:?}", &tile);
+                ctx.run_on_main_thread(move |ctx| {
+                    let bundle = (
+                        PbrBundle {
+                            mesh: mesh_handle,
+                            material: mat_handle,
+                            transform: Transform::from_translation(
+                                tile_data.origin,
+                            ),
+                            ..default()
+                        },
+                        big_space::GridCell::<i64>::ZERO,
+                        WebMercatorTile {
+                            coord: tile.clone(),
+                        },
+                    );
+                    ctx.world
+                        .spawn_empty()
+                        .insert(bundle)
+                        .set_parent(planet_ent);
+
+                    // info!("bundle inserted for {:?}", &tile);
                 })
                 .await;
-
-            rand_sleep(&mut ctx).await;
-
-            info!("assets loaded for {:?}", &tile);
-            ctx.run_on_main_thread(move |ctx| {
-                let bundle = PbrBundle {
-                    mesh: mesh_handle,
-                    material: mat_handle,
-                    ..default()
-                };
-                ctx.world.spawn_empty().insert(bundle);
-
-                info!("bundle inserted for {:?}", &tile);
-            })
-            .await;
-        });
+            });
+        }
     }
 }

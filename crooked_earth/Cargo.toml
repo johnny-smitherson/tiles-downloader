@@ -5,26 +5,16 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-path = "src/demo_tasks_tokio.rs"
-name= "demo_tasks_tokio"
-
-[[bin]]
-path = "src/demo_tasks_bevy.rs"
-name= "demo_tasks_bevy"
-
-[[bin]]
-path = "src/demo_bigspace_1.rs"
-name= "demo_bigspace_1"
-
 
 [dependencies]
 bevy = { version = "0.13.2" , features = ["dynamic_linking", "jpeg"]} # 
+bevy-inspector-egui = "0.24.0"
 bevy_egui = "0.27.0"
 bevy_framepace = "0.15.0"
 bevy_screen_diagnostics = "0.5.0"
 bevy_trackball = {version="0.5.0", features=["bevy_egui"]}
 big_space = "0.6.0"
+egui = "0.27.2"
 image = "0.24.9"
 rand = "0.8.5"
 reqwest = "0.12.4"
