@@ -19,16 +19,21 @@ pub struct SpawnUniversePlugin {}
 
 impl Plugin for SpawnUniversePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_sun)
+        app.add_systems(Startup, spawn_universe)
             .add_systems(Startup, spawn_camera)
-            .add_systems(Startup, spawn_stars)
+            .add_systems(Update, spawn_stars)
             .add_systems(Update, rotate)
+            .add_systems(Update, spawn_sun)
             .add_systems(Update, spawn_planet)
             .add_systems(Update, spawn_moon)
             .add_systems(Update, reparent_camera)
             .add_systems(Update, spawn_the_ball);
     }
 }
+
+
+#[derive(Component, Debug, Reflect)]
+struct TheUniverse;
 
 #[derive(Component, Debug, Reflect)]
 struct TheSun;
@@ -63,6 +68,16 @@ fn rotate(mut rotate_query: Query<(&mut Transform, &Rotates)>) {
     }
 }
 
+fn spawn_universe(mut commands: Commands) {
+    info!("spawn universe");
+    commands.spawn((
+        FloatingSpatialBundle::<i64>::default(),
+        TheUniverse,
+        Name::new("The Universe"),
+        ReferenceFrame::<i64>::default(),
+    ));
+}
+
 fn spawn_camera(mut commands: Commands) {
     info!("setup_camera");
     commands.spawn((
@@ -88,16 +103,22 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn spawn_stars(
+    parent: Query<Entity, Added<TheUniverse>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let parent = if parent.get_single().is_ok() {
+        parent.single()
+    } else {
+        return;
+    };
     info!("spawn_stars");
     let parent = commands.spawn((
         Name::new("Sky Stars"),
         FloatingSpatialBundle::<i64>::default(),
         ReferenceFrame::<i64>::default(),
-    )).id();
+    )).set_parent(parent).id();
     let mut sphere =
         |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
 
@@ -128,10 +149,17 @@ fn spawn_stars(
 }
 
 fn spawn_sun(
+    parent: Query<Entity, Added<TheUniverse>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let parent = if parent.get_single().is_ok() {
+        parent.single()
+    } else {
+        return;
+    };
+
     info!("spawn_sun");
     let mut sphere =
         |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
@@ -158,7 +186,8 @@ fn spawn_sun(
                 ..default()
             },
             TheSun,
-        ))
+            ReferenceFrame::<i64>::default(),
+        )).set_parent(parent)
         .with_children(|builder| {
             builder.spawn((
                 Name::new("The Sun Mesh"),
@@ -168,16 +197,17 @@ fn spawn_sun(
                     ..default()
                 },
                 TheSunMesh,
+                GridCell::<i64>::ZERO,
             ));
         });
 }
 
 fn spawn_planet(
-    parent: Query<Entity, Added<TheSun>>,
+    parent: Query<Entity, Added<TheUniverse>>,
     mut commands: Commands,
     space: Res<RootReferenceFrame<i64>>,
 ) {
-    let _parent = if parent.get_single().is_ok() {
+    let parent = if parent.get_single().is_ok() {
         parent.single()
     } else {
         return;
@@ -210,7 +240,7 @@ fn spawn_planet(
             tile_type: "arcgis_sat".into(),
             planet_radius: crate::universal_const::EARTH_RADIUS_M as f64,
         },
-    ));
+    )).set_parent(parent);
 }
 
 fn spawn_moon(

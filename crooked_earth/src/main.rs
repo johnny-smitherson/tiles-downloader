@@ -38,7 +38,7 @@ fn main() {
         .add_plugins((
             big_space::FloatingOriginPlugin::<i64>::default(),
             // big_space::debug::FloatingOriginDebugPlugin::<i64>::default(),
-            big_space::camera::CameraControllerPlugin::<i64>::default(),
+            // big_space::camera::CameraControllerPlugin::<i64>::default(),
             // bevy_framepace::FramepacePlugin,
         ))
         .add_plugins((
@@ -65,6 +65,7 @@ fn main() {
         .add_systems(Update, ignore_all_non_grid_from_floating_origin)
         .run()
 }
+
 fn make_window_visible_after_3_frames(
     mut window: Query<&mut Window>,
     frames: Res<bevy::core::FrameCount>,
