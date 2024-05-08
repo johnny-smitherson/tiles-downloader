@@ -57,8 +57,7 @@ impl EarthCamera {
     }
     fn accept_event(&mut self, ev: &CameraMoveEvent) {
         let speed = 15.0 * self.geo_alt_km / self.min_camera_alt;
-        let x_speed =
-            speed / self.geo_y_deg.to_radians().cos();
+        let x_speed = speed / self.geo_y_deg.to_radians().cos();
         let y_speed = speed;
         let z_exp_speed = 0.3;
         match ev.direction {
@@ -113,7 +112,8 @@ fn read_camera_input_events(
             cam.limit_fields();
         }
         let new_transform = cam.get_abs_transform();
-        transform.translation += new_transform.translation - old_transform.translation;
+        transform.translation +=
+            new_transform.translation - old_transform.translation;
         transform.rotation = new_transform.rotation;
     }
 }

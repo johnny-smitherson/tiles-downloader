@@ -1695,6 +1695,8 @@ dependencies = [
  "bevy_screen_diagnostics",
  "bevy_trackball",
  "big_space",
+ "bytes",
+ "crossbeam-channel",
  "egui 0.27.2",
  "image 0.24.9",
  "rand",

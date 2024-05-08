@@ -31,33 +31,26 @@ impl Plugin for SpawnUniversePlugin {
     }
 }
 
-
 #[derive(Component, Debug, Reflect)]
 struct TheUniverse;
 
 #[derive(Component, Debug, Reflect)]
 struct TheSun;
 
-
 #[derive(Component, Debug, Reflect)]
 struct TheSunMesh;
-
 
 #[derive(Component, Debug, Reflect)]
 struct SomeStar;
 
-
 #[derive(Component, Debug, Reflect)]
 struct ThePlanet;
-
 
 #[derive(Component, Debug, Reflect)]
 struct TheMoon;
 
-
 #[derive(Component, Debug, Reflect)]
 struct TheBall;
-
 
 #[derive(Component, Debug, Reflect)]
 struct Rotates(f32);
@@ -95,10 +88,10 @@ fn spawn_camera(mut commands: Commands) {
         BloomSettings::default(),
         GridCell::<i64>::ZERO,
         FloatingOrigin, // Important: marks the floating origin entity for rendering.
-        // CameraController::default() // Built-in camera controller
-        //     .with_speed_bounds([10e-18, 10e35])
-        //     .with_smoothness(0.9, 0.8)
-        //     .with_speed(1.0),
+                        // CameraController::default() // Built-in camera controller
+                        //     .with_speed_bounds([10e-18, 10e35])
+                        //     .with_smoothness(0.9, 0.8)
+                        //     .with_speed(1.0),
     ));
 }
 
@@ -114,11 +107,14 @@ fn spawn_stars(
         return;
     };
     info!("spawn_stars");
-    let parent = commands.spawn((
-        Name::new("Sky Stars"),
-        FloatingSpatialBundle::<i64>::default(),
-        ReferenceFrame::<i64>::default(),
-    )).set_parent(parent).id();
+    let parent = commands
+        .spawn((
+            Name::new("Sky Stars"),
+            FloatingSpatialBundle::<i64>::default(),
+            ReferenceFrame::<i64>::default(),
+        ))
+        .set_parent(parent)
+        .id();
     let mut sphere =
         |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
 
@@ -130,22 +126,23 @@ fn spawn_stars(
     });
     let mut rng = rand::thread_rng();
     for i in 0..500 {
-        commands.spawn((
-            Name::new(format!("star #{}", i)),
-            GridCell::<i64>::new(
-                ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
-                ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
-                ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
-            ),
-            PbrBundle {
-                mesh: star.clone(),
-                material: star_mat.clone(),
-                ..default()
-            },
-            SomeStar,
-        )).set_parent(parent);
+        commands
+            .spawn((
+                Name::new(format!("star #{}", i)),
+                GridCell::<i64>::new(
+                    ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
+                    ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
+                    ((rng.gen::<f32>() - 0.5) * 1e11) as i64,
+                ),
+                PbrBundle {
+                    mesh: star.clone(),
+                    material: star_mat.clone(),
+                    ..default()
+                },
+                SomeStar,
+            ))
+            .set_parent(parent);
     }
-
 }
 
 fn spawn_sun(
@@ -163,7 +160,6 @@ fn spawn_sun(
     info!("spawn_sun");
     let mut sphere =
         |radius| meshes.add(Sphere::new(radius).mesh().ico(4).unwrap());
-
 
     let sun_mat = materials.add(StandardMaterial {
         base_color: Color::WHITE,
@@ -187,7 +183,8 @@ fn spawn_sun(
             },
             TheSun,
             ReferenceFrame::<i64>::default(),
-        )).set_parent(parent)
+        ))
+        .set_parent(parent)
         .with_children(|builder| {
             builder.spawn((
                 Name::new("The Sun Mesh"),
@@ -219,28 +216,30 @@ fn spawn_planet(
     let (earth_cell, earth_pos): (GridCell<i64>, _) =
         space.imprecise_translation_to_grid(Vec3::Z * earth_orbit_radius_m);
 
-    commands.spawn((
-        // PbrBundle {
-        //     mesh: sphere(EARTH_RADIUS_M),
-        //     material: earth_mat,
-        //     transform: ,
-        //     ..default()
-        // },
-        Name::new("The Planet"),
-        FloatingSpatialBundle {
-            grid_position: earth_cell,
-            transform: Transform::from_translation(earth_pos),
-            ..default()
-        },
-        ReferenceFrame::<i64>::default(),
-        Rotates(0.001),
-        ThePlanet,
-        WebMercatorTiledPlanet {
-            root_zoom_level: 5,
-            tile_type: "arcgis_sat".into(),
-            planet_radius: crate::universal_const::EARTH_RADIUS_M as f64,
-        },
-    )).set_parent(parent);
+    commands
+        .spawn((
+            // PbrBundle {
+            //     mesh: sphere(EARTH_RADIUS_M),
+            //     material: earth_mat,
+            //     transform: ,
+            //     ..default()
+            // },
+            Name::new("The Planet"),
+            FloatingSpatialBundle {
+                grid_position: earth_cell,
+                transform: Transform::from_translation(earth_pos),
+                ..default()
+            },
+            ReferenceFrame::<i64>::default(),
+            Rotates(0.001),
+            ThePlanet,
+            WebMercatorTiledPlanet {
+                root_zoom_level: 5,
+                tile_type: "arcgis_sat".into(),
+                planet_radius: crate::universal_const::EARTH_RADIUS_M as f64,
+            },
+        ))
+        .set_parent(parent);
 }
 
 fn spawn_moon(
