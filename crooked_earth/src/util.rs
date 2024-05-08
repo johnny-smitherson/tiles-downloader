@@ -33,7 +33,6 @@ pub fn get_current_timestamp() -> f64 {
         .as_secs_f64()
 }
 
-
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::Extent3d;
 use bevy::render::render_resource::TextureDimension;

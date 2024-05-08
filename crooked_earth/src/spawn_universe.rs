@@ -6,9 +6,10 @@ use bevy::{core_pipeline::bloom::BloomSettings, render::camera::Exposure};
 
 use big_space::FloatingSpatialBundle;
 use big_space::{
-    camera::CameraController,
+    // camera::CameraController,
     reference_frame::{ReferenceFrame, RootReferenceFrame},
-    FloatingOrigin, GridCell,
+    FloatingOrigin,
+    GridCell,
 };
 use rand::Rng;
 
@@ -292,7 +293,7 @@ fn spawn_moon(
 fn reparent_camera(
     parent: Query<Entity, Added<ThePlanet>>,
     mut commands: Commands,
-    space: Res<RootReferenceFrame<i64>>,
+    // space: Res<RootReferenceFrame<i64>>,
     mut camera_q: Query<
         (Entity, &mut GridCell<i64>, &mut Transform),
         With<FloatingOrigin>,
@@ -304,7 +305,7 @@ fn reparent_camera(
     let parent = parent.single();
     info!("when_the_planet_appears_spawn_the_camera");
 
-    let (camera_ent, mut camera_gridcell_ref, mut camera_trans_ref) =
+    let (camera_ent, mut _camera_gridcell_ref, mut camera_trans_ref) =
         camera_q.single_mut();
 
     let cam_info = EarthCamera::from_planet_radius(

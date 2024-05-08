@@ -1,7 +1,7 @@
 use crate::bevy_tokio_tasks::TokioTasksRuntime;
+use crate::diagnostics::{DownloadFinished, DownloadPending};
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
-use crate::diagnostics::{DownloadFinished,DownloadPending};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use reqwest::StatusCode;
@@ -152,7 +152,8 @@ fn begin_fetch_root_planet_tiles(
             geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
         {
             total_tiles += 1;
-            let triangle_group = tile.geo_bbox().to_tris(planet_info.planet_radius);
+            let triangle_group =
+                tile.geo_bbox().to_tris(planet_info.planet_radius);
             let mesh = triangle_group.generate_mesh();
             let tile_center = triangle_group.center();
             let mesh_handle = meshes.add(mesh);
@@ -166,9 +167,7 @@ fn begin_fetch_root_planet_tiles(
                     ..default()
                 },
                 big_space::GridCell::<i64>::ZERO,
-                WebMercatorTile {
-                    coord: tile,
-                },
+                WebMercatorTile { coord: tile },
                 WebMercatorLeaf,
                 DownloadPending,
             );
@@ -177,18 +176,17 @@ fn begin_fetch_root_planet_tiles(
             let planet_info = planet_info.clone();
             let sender = sender.clone();
             runtime.spawn_background_task(move |mut _ctx| async move {
-                let tile_data = fetch_tile_data(
-                    tile,
-                    target,
-                    planet_info
-                )
-                .await;
+                let tile_data =
+                    fetch_tile_data(tile, target, planet_info).await;
                 let _ = sender.send(Arc::new(tile_data));
             });
         }
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        info!("spawned {} tiles in {} ms for planet {:?}", total_tiles, dt_ms, planet_info);
+        info!(
+            "spawned {} tiles in {} ms for planet {:?}",
+            total_tiles, dt_ms, planet_info
+        );
     }
 }
 
@@ -198,6 +196,8 @@ fn insert_downloaded_planet_tiles(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
     tile_q: Query<&WebMercatorTile>,
+    planetinfo_q: Query<&WebMercatorTiledPlanet>,
+    parent_q: Query<&Parent>,
 ) {
     let max_iters = 64;
     let mut current_iter = 0;
@@ -208,12 +208,37 @@ fn insert_downloaded_planet_tiles(
         } else {
             break;
         };
-        let tile_comp = tile_q.get(message.target);
-        if tile_comp.is_err() {
-            warn!("cannot find entity {:?} for downloaded tile {:?}", message.target, message.tile);
+        let target_tile = tile_q.get(message.target);
+        if target_tile.is_err() {
+            warn!(
+                "cannot find entity {:?} for downloaded tile {:?}",
+                message.target, message.tile
+            );
             continue;
         }
-        assert!(tile_comp.unwrap().coord.eq(&message.tile), "wrong tile for this entity");
+        assert!(
+            target_tile.unwrap().coord.eq(&message.tile),
+            "wrong tile for this entity"
+        );
+        let target_parent = parent_q.get(message.target);
+        if target_parent.is_err() {
+            warn!("cannot find parent for entity {:?}", message.target);
+            continue;
+        }
+        let target_planet = planetinfo_q
+            .get(target_parent.unwrap().get())
+            .expect("parent is not planet");
+        assert!(
+            target_planet
+                .planet_name
+                .eq(&message.planet_info.planet_name),
+            "wrong planet"
+        );
+        if !target_planet.tile_type.eq(&message.planet_info.tile_type) {
+            warn!("fetched tile type {} is not the one currently set on planet {} ({}).",
+            &message.planet_info.tile_type,target_planet.planet_name, target_planet.tile_type );
+            continue;
+        }
 
         current_iter += 1;
         let img_handle = images.add(message.image);
@@ -223,7 +248,11 @@ fn insert_downloaded_planet_tiles(
             reflectance: 0.0,
             ..default()
         });
-        commands.entity(message.target).insert(mat_handle).remove::<DownloadPending>().insert(DownloadFinished);
+        commands
+            .entity(message.target)
+            .insert(mat_handle)
+            .remove::<DownloadPending>()
+            .insert(DownloadFinished);
     }
     if current_iter > 0 {
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;

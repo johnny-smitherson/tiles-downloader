@@ -35,9 +35,9 @@ impl EarthCamera {
     }
 
     fn limit_fields(&mut self) {
-        let EPSILON: f64 = 1.0 / self.min_camera_alt; // 1m where 1.0 is radius of planet
-        if self.geo_alt < EPSILON {
-            self.geo_alt = EPSILON;
+        let epsilon: f64 = 1.0 / self.min_camera_alt; // 1m where 1.0 is radius of planet
+        if self.geo_alt < epsilon {
+            self.geo_alt = epsilon;
         }
         if self.geo_alt > self.max_camera_alt {
             self.geo_alt = self.max_camera_alt;
