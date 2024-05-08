@@ -16,7 +16,7 @@ impl Plugin for EarthCameraPlugin {
 pub struct EarthCamera {
     geo_x_deg: f64,
     geo_y_deg: f64,
-    geo_alt_km: f64,
+    geo_alt: f64,
     max_camera_alt: f64,
     min_camera_alt: f64,
 }
@@ -30,17 +30,17 @@ impl EarthCamera {
     pub fn get_abs_transform(&self) -> Transform {
         let xyz = geo_trig::gps_to_cartesian(self.geo_x_deg, self.geo_y_deg)
             .normalize()
-            * (self.min_camera_alt + self.geo_alt_km) as f32;
+            * (self.min_camera_alt + self.geo_alt) as f32;
         Transform::from_translation(xyz).looking_at(Vec3::ZERO, Vec3::Y)
     }
 
     fn limit_fields(&mut self) {
         let EPSILON: f64 = 1.0 / self.min_camera_alt; // 1m where 1.0 is radius of planet
-        if self.geo_alt_km < EPSILON {
-            self.geo_alt_km = EPSILON;
+        if self.geo_alt < EPSILON {
+            self.geo_alt = EPSILON;
         }
-        if self.geo_alt_km > self.max_camera_alt {
-            self.geo_alt_km = self.max_camera_alt;
+        if self.geo_alt > self.max_camera_alt {
+            self.geo_alt = self.max_camera_alt;
         }
         while self.geo_x_deg < -180.0 {
             self.geo_x_deg += 360.0;
@@ -56,7 +56,7 @@ impl EarthCamera {
         }
     }
     fn accept_event(&mut self, ev: &CameraMoveEvent) {
-        let speed = 15.0 * self.geo_alt_km / self.min_camera_alt;
+        let speed = 15.0 * self.geo_alt / self.min_camera_alt;
         let x_speed = speed / self.geo_y_deg.to_radians().cos();
         let y_speed = speed;
         let z_exp_speed = 0.3;
@@ -74,10 +74,10 @@ impl EarthCamera {
                 self.geo_x_deg += ev.value * x_speed;
             }
             crate::input_events::CameraMoveDirection::ZOOMIN => {
-                self.geo_alt_km *= 1.0 - z_exp_speed * ev.value;
+                self.geo_alt *= 1.0 - z_exp_speed * ev.value;
             }
             crate::input_events::CameraMoveDirection::ZOOMOUT => {
-                self.geo_alt_km *= 1.0 + z_exp_speed * ev.value;
+                self.geo_alt *= 1.0 + z_exp_speed * ev.value;
             }
         }
     }
@@ -88,7 +88,7 @@ impl EarthCamera {
         let mut x = Self {
             geo_x_deg: -83.0458,
             geo_y_deg: 42.3314,
-            geo_alt_km: planet_radius * 2.,
+            geo_alt: planet_radius * 2.,
             min_camera_alt: planet_radius + 1.0,
             max_camera_alt: planet_radius * 3.,
         };

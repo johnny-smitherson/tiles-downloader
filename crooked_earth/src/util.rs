@@ -41,7 +41,7 @@ use bevy::render::render_resource::TextureFormat;
 use bevy::render::texture::Image;
 /// Creates a colorful test pattern
 #[allow(dead_code)]
-fn uv_debug_texture() -> Image {
+pub fn uv_debug_texture() -> Image {
     const TEXTURE_SIZE: usize = 8;
 
     let mut palette: [u8; 32] = [

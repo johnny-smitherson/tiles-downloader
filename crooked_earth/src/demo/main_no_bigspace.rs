@@ -76,8 +76,6 @@ fn make_window_visible_after_3_frames(
         commands.spawn(SpatialBundle::default()).insert(
             earth_fetch::WebMercatorTiledPlanet {
                 root_zoom_level: 4,
-                tile_type: "arcgis_sat".into(),
-                planet_radius: earth_camera::EARTH_RADIUS_KM,
             },
         );
     }

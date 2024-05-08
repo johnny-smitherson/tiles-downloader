@@ -1,11 +1,4 @@
 use bevy::prelude::*;
-/// Example with spheres at the scale and distance of the earth and moon around the sun, at 1:1
-/// scale. The earth is rotating on its axis, and the camera is in this reference frame, to
-/// demonstrate how high precision nested reference frames work at large scales.
-use bevy_screen_diagnostics::{
-    ScreenDiagnosticsPlugin, ScreenEntityDiagnosticsPlugin,
-    ScreenFrameDiagnosticsPlugin,
-};
 
 use crooked_earth::bevy_tokio_tasks::TokioTasksPlugin;
 
@@ -43,9 +36,6 @@ fn main() {
         ))
         .add_plugins((
             bevy_egui::EguiPlugin,
-            ScreenDiagnosticsPlugin::default(),
-            ScreenFrameDiagnosticsPlugin,
-            ScreenEntityDiagnosticsPlugin,
             TokioTasksPlugin::default(),
             bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         ))
@@ -54,6 +44,7 @@ fn main() {
             crooked_earth::spawn_universe::SpawnUniversePlugin {},
             crooked_earth::input_events::InputEventsPlugin {},
             crooked_earth::earth_camera::EarthCameraPlugin {},
+            crooked_earth::diagnostics::CustomDiagnosticsPlugin {},
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(AmbientLight {

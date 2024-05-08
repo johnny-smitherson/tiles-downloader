@@ -1,9 +1,9 @@
 use crate::bevy_tokio_tasks::TokioTasksRuntime;
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
+use crate::diagnostics::{DownloadFinished,DownloadPending};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
-use rand::Rng;
 use reqwest::StatusCode;
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ pub struct EarthFetchPlugin {}
 impl Plugin for EarthFetchPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, begin_fetch_root_planet_tiles)
-            .add_systems(Update, spawn_ready_planet_tiles)
+            .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Startup, spawn_tile_fetch_channel);
     }
 }
@@ -21,16 +21,17 @@ impl Plugin for EarthFetchPlugin {
 struct TileFetchReceiver(crossbeam_channel::Receiver<Arc<TileFetchResultData>>);
 
 #[derive(Resource, Deref)]
-struct TileFetcSender(crossbeam_channel::Sender<Arc<TileFetchResultData>>);
+struct TileFetchSender(crossbeam_channel::Sender<Arc<TileFetchResultData>>);
 
 fn spawn_tile_fetch_channel(mut commands: Commands) {
     let (tx, rx) = crossbeam_channel::bounded(1000);
     commands.insert_resource(TileFetchReceiver(rx));
-    commands.insert_resource(TileFetcSender(tx));
+    commands.insert_resource(TileFetchSender(tx));
 }
 
 #[derive(Component, Debug, Clone)]
 pub struct WebMercatorTiledPlanet {
+    pub planet_name: String,
     pub root_zoom_level: u8,
     pub tile_type: String,
     pub planet_radius: f64,
@@ -46,11 +47,10 @@ pub struct WebMercatorLeaf;
 
 #[derive(Debug)]
 pub struct TileFetchResultData {
-    mesh: Mesh,
-    origin: Vec3,
     image: Image,
-    parent: Entity,
-    tile_coord: TileCoord,
+    target: Entity,
+    tile: TileCoord,
+    planet_info: WebMercatorTiledPlanet,
 }
 
 async fn fetch_url_to_bytes(url: &str) -> bytes::Bytes {
@@ -105,27 +105,20 @@ async fn fetch_url_image(url: &str, img_type: image::ImageFormat) -> Image {
 
 async fn fetch_tile_data(
     tile: geo_trig::TileCoord,
-    tile_type: &str,
-    planet_radius: f64,
-    parent: Entity,
-    tile_coord: TileCoord,
+    target: Entity,
+    planet_info: WebMercatorTiledPlanet,
 ) -> TileFetchResultData {
     let tile_url = format!(
         "http://localhost:8000/api/tile/{}/{}/{}/{}/tile.jpg",
-        tile_type, tile.z, tile.x, tile.y
+        planet_info.tile_type, tile.z, tile.x, tile.y
     );
     let img = fetch_url_image(&tile_url, image::ImageFormat::Jpeg).await;
 
-    let triangle_group = tile.geo_bbox().to_tris(planet_radius);
-    let mesh = triangle_group.generate_mesh();
-    let tile_center = triangle_group.center();
-
     TileFetchResultData {
-        mesh,
         image: img,
-        origin: tile_center,
-        parent,
-        tile_coord,
+        target,
+        tile,
+        planet_info,
     }
 }
 
@@ -135,76 +128,106 @@ fn begin_fetch_root_planet_tiles(
         (Entity, &WebMercatorTiledPlanet),
         Added<WebMercatorTiledPlanet>,
     >,
-    sender: Res<TileFetcSender>,
-) {
-    for (planet_ent, planet_info) in planets_q.iter() {
-        for tile in
-            geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
-        {
-            let t2 = tile;
-            let planet_info = planet_info.clone();
-            let sender = sender.clone();
-            runtime.spawn_background_task(move |mut _ctx| async move {
-                let tile_data = fetch_tile_data(
-                    t2,
-                    &planet_info.tile_type,
-                    planet_info.planet_radius,
-                    planet_ent,
-                    tile,
-                )
-                .await;
-                let _ = sender.send(Arc::new(tile_data));
-            });
-        }
-    }
-}
-
-fn spawn_ready_planet_tiles(
-    receiver: Res<TileFetchReceiver>,
+    sender: Res<TileFetchSender>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
-    let max_iters = 64_i32;
-    let mut current_iter = 0;
-    let t0 = crate::util::get_current_timestamp();
-    for _i in 1..=max_iters {
-        if let Ok(message) = receiver.try_recv() {
-            current_iter += 1;
-            let message = Arc::try_unwrap(message).unwrap();
-            // info!("running tile spawn {:?}", message);
-            let mesh_handle = meshes.add(message.mesh);
-            let img_handle = images.add(message.image);
-            let mat_handle = materials.add(StandardMaterial {
-                base_color_texture: Some(img_handle),
-                perceptual_roughness: 1.0,
-                reflectance: 0.0,
-                ..default()
-            });
+    if planets_q.is_empty() {
+        return;
+    }
+    let default_img_handle = images.add(crate::util::uv_debug_texture());
+    let default_mat_handle = materials.add(StandardMaterial {
+        base_color_texture: Some(default_img_handle),
+        perceptual_roughness: 1.0,
+        reflectance: 0.0,
+        ..default()
+    });
+
+    for (planet_ent, planet_info) in planets_q.iter() {
+        let mut total_tiles = 0;
+        let t0 = crate::util::get_current_timestamp();
+        for tile in
+            geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
+        {
+            total_tiles += 1;
+            let triangle_group = tile.geo_bbox().to_tris(planet_info.planet_radius);
+            let mesh = triangle_group.generate_mesh();
+            let tile_center = triangle_group.center();
+            let mesh_handle = meshes.add(mesh);
 
             let bundle = (
-                Name::new(format!("Planet Tile {:?}", message.tile_coord.clone())),
+                Name::new(format!("{} {:?}", planet_info.planet_name, tile)),
                 PbrBundle {
                     mesh: mesh_handle,
-                    material: mat_handle,
-                    transform: Transform::from_translation(message.origin),
+                    material: default_mat_handle.clone(),
+                    transform: Transform::from_translation(tile_center),
                     ..default()
                 },
                 big_space::GridCell::<i64>::ZERO,
                 WebMercatorTile {
-                    coord: message.tile_coord.clone(),
+                    coord: tile,
                 },
                 WebMercatorLeaf,
+                DownloadPending,
             );
-            commands.spawn(bundle).set_parent(message.parent);
+            let target = commands.spawn(bundle).set_parent(planet_ent).id();
+
+            let planet_info = planet_info.clone();
+            let sender = sender.clone();
+            runtime.spawn_background_task(move |mut _ctx| async move {
+                let tile_data = fetch_tile_data(
+                    tile,
+                    target,
+                    planet_info
+                )
+                .await;
+                let _ = sender.send(Arc::new(tile_data));
+            });
+        }
+        let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
+        let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
+        info!("spawned {} tiles in {} ms for planet {:?}", total_tiles, dt_ms, planet_info);
+    }
+}
+
+fn insert_downloaded_planet_tiles(
+    receiver: Res<TileFetchReceiver>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+    tile_q: Query<&WebMercatorTile>,
+) {
+    let max_iters = 64;
+    let mut current_iter = 0;
+    let t0 = crate::util::get_current_timestamp();
+    for _i in 1..=max_iters {
+        let message = if let Ok(message) = receiver.try_recv() {
+            Arc::try_unwrap(message).unwrap()
         } else {
             break;
+        };
+        let tile_comp = tile_q.get(message.target);
+        if tile_comp.is_err() {
+            warn!("cannot find entity {:?} for downloaded tile {:?}", message.target, message.tile);
+            continue;
         }
+        assert!(tile_comp.unwrap().coord.eq(&message.tile), "wrong tile for this entity");
+
+        current_iter += 1;
+        let img_handle = images.add(message.image);
+        let mat_handle = materials.add(StandardMaterial {
+            base_color_texture: Some(img_handle),
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            ..default()
+        });
+        commands.entity(message.target).insert(mat_handle).remove::<DownloadPending>().insert(DownloadFinished);
     }
     if current_iter > 0 {
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        info!("injected {} img in {} ms", current_iter, dt_ms);
+        info!("spawned {} tiles in {} ms", current_iter, dt_ms);
     }
 }

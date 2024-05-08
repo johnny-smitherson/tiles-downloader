@@ -6,3 +6,4 @@ pub mod input_events;
 pub mod spawn_universe;
 pub mod universal_const;
 pub mod util;
+pub mod diagnostics;

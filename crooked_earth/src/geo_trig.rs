@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{self, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TileCoord {
     pub x: u64,
     pub y: u64,
@@ -154,6 +154,7 @@ pub struct TriangleData {
     max_edge_len: f32,
     min_edge_len: f32,
 }
+
 impl TriangleData {
     fn new(verts: [Vec3; 3], uvs: [Vec2; 3], mesh_origin: Vec3) -> Self {
         // let mut rng = rand::thread_rng();
