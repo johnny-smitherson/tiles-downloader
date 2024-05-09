@@ -1,4 +1,5 @@
 pub mod bevy_tokio_tasks;
+pub mod config_tileserver;
 pub mod diagnostics;
 pub mod earth_camera;
 pub mod earth_fetch;

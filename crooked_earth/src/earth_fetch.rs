@@ -1,18 +1,21 @@
 use crate::bevy_tokio_tasks::TokioTasksRuntime;
-use crate::diagnostics::{DownloadFinished, DownloadPending};
+use crate::config_tileserver::{self, TileServers};
+use crate::diagnostics::{DownloadFinished, DownloadPending, DownloadStarted};
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use reqwest::StatusCode;
 use std::sync::Arc;
+use std::thread::current;
 
 pub struct EarthFetchPlugin {}
 
 impl Plugin for EarthFetchPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, begin_fetch_root_planet_tiles)
+        app.add_systems(Update, spawn_root_planet_tiles)
             .add_systems(Update, insert_downloaded_planet_tiles)
+            .add_systems(Update, start_planet_tile_download)
             .add_systems(Startup, spawn_tile_fetch_channel);
     }
 }
@@ -88,9 +91,10 @@ async fn fetch_url_to_bytes(url: &str) -> bytes::Bytes {
     img
 }
 
-async fn fetch_url_image(url: &str, img_type: image::ImageFormat) -> Image {
-    let img = fetch_url_to_bytes(url).await;
-
+pub fn parse_bytes_to_image(
+    img: bytes::Bytes,
+    img_type: image::ImageFormat,
+) -> Image {
     let img_reader =
         image::io::Reader::with_format(std::io::Cursor::new(img), img_type);
     let img = img_reader.decode().unwrap();
@@ -107,12 +111,12 @@ async fn fetch_tile_data(
     tile: geo_trig::TileCoord,
     target: Entity,
     planet_info: WebMercatorTiledPlanet,
+    server: config_tileserver::TileServerConfig,
 ) -> TileFetchResultData {
-    let tile_url = format!(
-        "http://localhost:8000/api/tile/{}/{}/{}/{}/tile.jpg",
-        planet_info.tile_type, tile.z, tile.x, tile.y
+    let img = parse_bytes_to_image(
+        fetch_url_to_bytes(&server.get_tile_url(tile)).await,
+        server.img_type(),
     );
-    let img = fetch_url_image(&tile_url, image::ImageFormat::Jpeg).await;
 
     TileFetchResultData {
         image: img,
@@ -122,13 +126,11 @@ async fn fetch_tile_data(
     }
 }
 
-fn begin_fetch_root_planet_tiles(
-    runtime: ResMut<TokioTasksRuntime>,
+fn spawn_root_planet_tiles(
     planets_q: Query<
         (Entity, &WebMercatorTiledPlanet),
         Added<WebMercatorTiledPlanet>,
     >,
-    sender: Res<TileFetchSender>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -171,15 +173,7 @@ fn begin_fetch_root_planet_tiles(
                 WebMercatorLeaf,
                 DownloadPending,
             );
-            let target = commands.spawn(bundle).set_parent(planet_ent).id();
-
-            let planet_info = planet_info.clone();
-            let sender = sender.clone();
-            runtime.spawn_background_task(move |mut _ctx| async move {
-                let tile_data =
-                    fetch_tile_data(tile, target, planet_info).await;
-                let _ = sender.send(Arc::new(tile_data));
-            });
+            commands.spawn(bundle).set_parent(planet_ent);
         }
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
@@ -187,6 +181,40 @@ fn begin_fetch_root_planet_tiles(
             "spawned {} tiles in {} ms for planet {:?}",
             total_tiles, dt_ms, planet_info
         );
+    }
+}
+
+fn start_planet_tile_download(pending_tiles: Query<(Entity, &WebMercatorTile, &Parent), With<DownloadPending>>, planet_q: Query<&WebMercatorTiledPlanet>,
+tileservers: Res<TileServers>,
+sender: Res<TileFetchSender>,
+runtime: ResMut<TokioTasksRuntime>,
+mut commands: Commands,
+)
+{
+    let mut current_iter = 0;
+    let t0 = crate::util::get_current_timestamp();
+
+    for (target, tile, parent) in pending_tiles.iter().take(64) {
+        let planet_info = planet_q.get(parent.get()).expect("parent is planet");
+        current_iter += 1;
+
+        let planet_info = planet_info.clone();
+        let sender = sender.clone();
+        let server_config = tileservers.get(&planet_info.tile_type);
+        let tile = tile.coord.clone();
+        runtime.spawn_background_task(move |mut _ctx| async move {
+            let tile_data =
+                fetch_tile_data(tile, target, planet_info, server_config)
+                    .await;
+            let _ = sender.send(Arc::new(tile_data));
+        });
+        commands.entity(target).remove::<DownloadPending>().remove::<DownloadFinished>().insert(DownloadStarted);
+    }
+
+    if current_iter > 0 {
+        let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
+        let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
+        info!("started download {} tiles in {} ms", current_iter, dt_ms);
     }
 }
 
@@ -252,6 +280,7 @@ fn insert_downloaded_planet_tiles(
             .entity(message.target)
             .insert(mat_handle)
             .remove::<DownloadPending>()
+            .remove::<DownloadStarted>()
             .insert(DownloadFinished);
     }
     if current_iter > 0 {

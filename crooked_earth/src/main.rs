@@ -45,6 +45,7 @@ fn main() {
             crooked_earth::input_events::InputEventsPlugin {},
             crooked_earth::earth_camera::EarthCameraPlugin {},
             crooked_earth::diagnostics::CustomDiagnosticsPlugin {},
+            crooked_earth::config_tileserver::ConfigTileServersPlugin {},
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .insert_resource(AmbientLight {
