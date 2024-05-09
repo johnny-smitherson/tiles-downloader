@@ -1,4 +1,5 @@
 use crate::config;
+use crate::config::TileServerConfig;
 use crate::download_geoduck;
 use crate::download_geosearch;
 use crate::download_tile;
@@ -10,14 +11,22 @@ use rocket::http::ContentType;
 use rocket::response::Responder;
 use rocket::Response;
 use std::io::Cursor;
+use rocket::serde::json::Json;
 
 pub fn get_api_routes() -> Vec<rocket::Route> {
     routes![
         get_tile,
         get_tile_with_overlay,
         geo_search_json,
-        get_overt_geoduck
+        get_overt_geoduck,
+        get_tileserver_config
     ]
+}
+
+#[get("/api/config/tileservers.json")]
+async fn get_tileserver_config() ->  rocket_anyhow::Result<Json<Vec<TileServerConfig>>> {
+    let tiles = config::get_all_tile_servers()?;
+    Ok(Json(tiles))
 }
 
 pub struct ImageResponse {

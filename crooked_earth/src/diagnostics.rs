@@ -41,8 +41,8 @@ impl Plugin for CustomDiagnosticsPlugin {
 #[derive(Debug, Component, Default)]
 pub struct DownloadPending;
 
-#[derive(Debug, Component, Default)]
-pub struct DownloadStarted;
+#[derive(Debug, Component)]
+pub struct DownloadStarted(pub tokio::task::JoinHandle<()>);
 
 #[derive(Debug, Component, Default)]
 pub struct DownloadFinished;

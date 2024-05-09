@@ -12,6 +12,7 @@ pub(crate) mod http_api;
 pub(crate) mod http_pages;
 pub(crate) mod proxy_manager;
 pub(crate) mod rocket_anyhow;
+pub(crate) mod stat_counter;
 
 #[macro_use]
 extern crate rocket;

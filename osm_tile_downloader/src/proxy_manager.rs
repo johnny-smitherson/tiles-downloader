@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use crate::config::{self, *};
 use crate::fetch;
+use crate::stat_counter;
 use anyhow::Context;
 use anyhow::Result;
 use rand::Rng;
@@ -264,7 +265,7 @@ pub async fn proxy_manager_iteration() -> Result<()> {
     let addr_list: Vec<&str> =
         all_proxies.iter().map(|e| e.addr.as_str()).collect();
     let all_proxy_event_count =
-        &config::stat_count_events_for_items(&addr_list);
+        &stat_counter::stat_count_events_for_items(&addr_list);
     futures::stream::iter(all_proxies)
         .for_each_concurrent(
             LINKS_CONFIG.proxy_fetch_parallel as usize,
@@ -400,7 +401,7 @@ fn proxy_stat_increment(
     let url_parsed = url::Url::parse(url)?;
     let url_domain = url_parsed.domain().context("url has no domain??")?;
     let stat_type = format!("proxy_{}_socksaddr_targetdomain", _type);
-    config::stat_counter_increment(
+    stat_counter::stat_counter_increment(
         &stat_type,
         if success { "success" } else { "fail" },
         proxy_addr,
@@ -408,7 +409,7 @@ fn proxy_stat_increment(
     )?;
 
     let stat_type = format!("proxy_{}_sockscateg_targetdomain", _type);
-    config::stat_counter_increment(
+    stat_counter::stat_counter_increment(
         &stat_type,
         if success { "success" } else { "fail" },
         proxy_cat,

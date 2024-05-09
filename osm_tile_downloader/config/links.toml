@@ -143,7 +143,8 @@ width = 256
 height = 256
 max_level = 7
 img_type = "jpg"
-map_type = "elevation_moon"
+map_type = "elevation"
+planet = "moon"
 
 [[tile_servers]]
 name = "google_moon"
@@ -153,7 +154,8 @@ width = 256
 height = 256
 max_level = 9
 img_type = "jpg"
-map_type = "sat_moon"
+map_type = "sat"
+planet = "moon"
 
 
 ######################################################################
@@ -170,6 +172,7 @@ height = 256
 max_level = 19
 img_type = "png"
 map_type = "tiles"
+planet = "earth"
 
 [[tile_servers]]
 name = "osm_tiles2"
@@ -180,6 +183,7 @@ height = 512
 max_level = 12
 img_type = "png"
 map_type = "tiles"
+planet = "earth"
 
 
 [[tile_servers]]
@@ -192,6 +196,7 @@ height = 256
 img_type = "png"
 map_type = "tiles"
 max_level = 17
+planet = "earth"
 
 ######################################################################
 # TILES -  EARTH - GOOGL
@@ -208,6 +213,7 @@ height = 256
 max_level = 21
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "google_tiles"
@@ -218,6 +224,7 @@ height = 256
 max_level = 21
 img_type = "png"
 map_type = "tiles"
+planet = "earth"
 
 
 [[tile_servers]]
@@ -229,6 +236,7 @@ height = 256
 max_level = 21
 img_type = "jpg"
 map_type = "hybrid"
+planet = "earth"
 
 ######################################################################
 # TILES -  EARTH - MICRO$
@@ -244,6 +252,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "bing_tiles"
@@ -254,6 +263,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "tiles"
+planet = "earth"
 
 
 
@@ -271,6 +281,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "nasa_max9_2024_04_10_sat"
@@ -281,6 +292,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "nasa_max9_2024_04_01_sat"
@@ -291,6 +303,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "nasa_max9_2024_03_01_sat"
@@ -301,6 +314,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 
 ######################################################################
@@ -317,6 +331,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "sat"
+planet = "earth"
 
 [[tile_servers]]
 name = "arcgis_hillshade"
@@ -327,6 +342,7 @@ width = 256
 height = 256
 img_type = "jpg"
 map_type = "hillshade"
+planet = "earth"
 
 
 ######################################################################
@@ -342,6 +358,7 @@ height = 512
 max_level = 21
 img_type = "png"
 map_type = "tiles"
+planet = "earth"
 
 # [yandex.overlay]
 # url = https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&v=24.04.13-1-b240404173730&x=10&y=6&z=4&scale=2&lang=en_US&client_id=yandex-web-maps&experimental_ranking_mode_name=default-web-ranking&experimental_data_poi=postprocess_base_ranking_for_auction
@@ -356,6 +373,7 @@ height = 256
 max_level = 20
 img_type = "jpg"
 map_type = "wgs84_sat"  # compared to tiler above, does not need &projection=web_mercator
+planet = "earth"
 
 
 # https://en.wikipedia.org/wiki/Restrictions_on_geographic_data_in_China

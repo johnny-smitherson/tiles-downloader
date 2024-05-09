@@ -7,7 +7,6 @@ use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use reqwest::StatusCode;
 use std::sync::Arc;
-use std::thread::current;
 
 pub struct EarthFetchPlugin {}
 
@@ -16,6 +15,7 @@ impl Plugin for EarthFetchPlugin {
         app.add_systems(Update, spawn_root_planet_tiles)
             .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Update, start_planet_tile_download)
+            .add_systems(Update, set_tiles_pending_when_planet_changes)
             .add_systems(Startup, spawn_tile_fetch_channel);
     }
 }
@@ -184,17 +184,62 @@ fn spawn_root_planet_tiles(
     }
 }
 
-fn start_planet_tile_download(pending_tiles: Query<(Entity, &WebMercatorTile, &Parent), With<DownloadPending>>, planet_q: Query<&WebMercatorTiledPlanet>,
-tileservers: Res<TileServers>,
-sender: Res<TileFetchSender>,
-runtime: ResMut<TokioTasksRuntime>,
-mut commands: Commands,
-)
-{
+fn set_tiles_pending_when_planet_changes(
+    planets_q: Query<
+        (Entity, &WebMercatorTiledPlanet, &Children),
+        Changed<WebMercatorTiledPlanet>,
+    >,
+    finished_q: Query<(), (With<DownloadFinished>, Without<DownloadStarted>, With<WebMercatorTile>)>,
+    started_q: Query<&DownloadStarted, With<WebMercatorTile>>,
+    mut commands: Commands,
+) {
+    for (_planet_ent, _planet_info, children) in planets_q.iter() {
+        let mut current_count = 0;
+        let mut aborted_count = 0;
+        for child in children.iter() {
+            if let Ok(()) = finished_q.get(*child) {
+                commands
+                    .entity(*child)
+                    .remove::<(DownloadStarted, DownloadFinished)>()
+                    .insert(DownloadPending);
+                current_count += 1;
+            }
+            else if let Ok(started) = started_q.get(*child) {
+                started.0.abort();
+                commands
+                .entity(*child)
+                .remove::<(DownloadStarted, DownloadFinished)>()
+                .insert(DownloadPending);
+            current_count += 1;
+            aborted_count += 1;
+            }
+        }
+        info!(
+            "reset download for {} (aborted {}) tiles for planet {}",
+            current_count, aborted_count, _planet_info.planet_name
+        );
+    }
+}
+
+fn start_planet_tile_download(
+    pending_tiles: Query<
+        (Entity, &WebMercatorTile, &Parent),
+        With<DownloadPending>,
+    >,
+    planet_q: Query<&WebMercatorTiledPlanet>,
+    tileservers: Res<TileServers>,
+    sender: Res<TileFetchSender>,
+    runtime: ResMut<TokioTasksRuntime>,
+    mut commands: Commands,
+) {
     let mut current_iter = 0;
     let t0 = crate::util::get_current_timestamp();
-
-    for (target, tile, parent) in pending_tiles.iter().take(64) {
+    if pending_tiles.is_empty() {
+        return;
+    }
+    let (task_tx, task_rx) = crossbeam_channel::bounded(100);
+    let dispatch_count: usize = 16;
+    for (target, tile, parent) in pending_tiles.iter().take(dispatch_count) {
         let planet_info = planet_q.get(parent.get()).expect("parent is planet");
         current_iter += 1;
 
@@ -202,19 +247,38 @@ mut commands: Commands,
         let sender = sender.clone();
         let server_config = tileservers.get(&planet_info.tile_type);
         let tile = tile.coord.clone();
+        let task_tx = task_tx.clone();
+
         runtime.spawn_background_task(move |mut _ctx| async move {
-            let tile_data =
-                fetch_tile_data(tile, target, planet_info, server_config)
-                    .await;
-            let _ = sender.send(Arc::new(tile_data));
+            let tokio_handle = tokio::task::spawn(async move {
+                let data = fetch_tile_data(
+                    tile,
+                    target,
+                    planet_info,
+                    server_config,
+                )
+                .await;
+
+                let _ = sender.send(Arc::new(data));
+            });
+            let _ = task_tx.send((target, tokio_handle));
+            drop(task_tx);
         });
-        commands.entity(target).remove::<DownloadPending>().remove::<DownloadFinished>().insert(DownloadStarted);
+    }
+    for (target, task_h) in task_rx.into_iter().take(current_iter) {
+        commands
+            .entity(target)
+            .remove::<DownloadPending>()
+            .remove::<DownloadFinished>()
+            .insert(DownloadStarted(task_h));
     }
 
     if current_iter > 0 {
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        info!("started download {} tiles in {} ms", current_iter, dt_ms);
+        if dt_ms > 1.0 {
+            info!("started download {} tiles in {} ms", current_iter, dt_ms);
+        }
     }
 }
 
@@ -286,6 +350,8 @@ fn insert_downloaded_planet_tiles(
     if current_iter > 0 {
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        info!("spawned {} tiles in {} ms", current_iter, dt_ms);
+        if dt_ms > 1.0 {
+            info!("inserted {} materials in {} ms", current_iter, dt_ms);
+        }
     }
 }

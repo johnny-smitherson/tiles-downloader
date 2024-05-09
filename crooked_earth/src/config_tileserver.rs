@@ -17,10 +17,12 @@ impl Plugin for ConfigTileServersPlugin {
 
 fn update_egui_tile_picker(
     mut contexts: bevy_egui::EguiContexts,
-    mut planets: Query<&mut WebMercatorTiledPlanet>,
+    planets: Query<(Entity, &WebMercatorTiledPlanet)>,
     servers: Res<TileServers>,
+    mut commands: Commands,
 ) {
-    for mut planet in planets.iter_mut() {
+    let mut to_change = vec![];
+    for (planet_ent, planet) in planets.iter() {
         let mut current_type = planet.tile_type.clone();
         let ctx = contexts.ctx_mut();
         egui::Window::new(&planet.planet_name)
@@ -59,8 +61,13 @@ fn update_egui_tile_picker(
             });
         if !current_type.eq(&planet.tile_type) {
             info!("change {} to {}", planet.planet_name, current_type);
-            planet.tile_type = current_type;
+            let mut new_planet = planet.clone();
+            new_planet.tile_type = current_type;
+            to_change.push((planet_ent, new_planet));
         }
+    }
+    for (ent, val) in to_change {
+        commands.entity(ent).insert(val);
     }
 }
 

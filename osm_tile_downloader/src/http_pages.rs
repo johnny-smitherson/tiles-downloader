@@ -13,6 +13,7 @@ use crate::geo_trig;
 use crate::http_api;
 use crate::proxy_manager;
 use crate::rocket_anyhow;
+use crate::stat_counter;
 
 pub fn get_page_routes() -> Vec<rocket::Route> {
     routes![index, health_check, favicon, geo_index, proxy_info,]
@@ -41,7 +42,7 @@ fn index() -> rocket_anyhow::Result<Template> {
 #[get("/proxy")]
 async fn proxy_info() -> rocket_anyhow::Result<Template> {
     let scrapers = config::get_all_socks5_scrapers()?;
-    let scraper_events = config::stat_count_events_for_items(
+    let scraper_events = stat_counter::stat_count_events_for_items(
         &scrapers.iter().map(|e| e.name.as_str()).collect(),
     );
     let scrapers: Vec<(_, Vec<_>)> = scrapers
@@ -57,7 +58,7 @@ async fn proxy_info() -> rocket_anyhow::Result<Template> {
             scrapers: scrapers,
             all_working_proxies: proxy_manager::get_all_working_proxies(),
             all_broken_proxies: proxy_manager::get_all_broken_proxies(),
-            stat_counters: config::stat_counter_get_all(),
+            stat_counters: stat_counter::stat_counter_get_all(),
         },
     ))
 }
