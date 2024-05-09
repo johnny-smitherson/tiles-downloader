@@ -189,7 +189,14 @@ fn set_tiles_pending_when_planet_changes(
         (Entity, &WebMercatorTiledPlanet, &Children),
         Changed<WebMercatorTiledPlanet>,
     >,
-    finished_q: Query<(), (With<DownloadFinished>, Without<DownloadStarted>, With<WebMercatorTile>)>,
+    finished_q: Query<
+        (),
+        (
+            With<DownloadFinished>,
+            Without<DownloadStarted>,
+            With<WebMercatorTile>,
+        ),
+    >,
     started_q: Query<&DownloadStarted, With<WebMercatorTile>>,
     mut commands: Commands,
 ) {
@@ -203,15 +210,14 @@ fn set_tiles_pending_when_planet_changes(
                     .remove::<(DownloadStarted, DownloadFinished)>()
                     .insert(DownloadPending);
                 current_count += 1;
-            }
-            else if let Ok(started) = started_q.get(*child) {
+            } else if let Ok(started) = started_q.get(*child) {
                 started.0.abort();
                 commands
-                .entity(*child)
-                .remove::<(DownloadStarted, DownloadFinished)>()
-                .insert(DownloadPending);
-            current_count += 1;
-            aborted_count += 1;
+                    .entity(*child)
+                    .remove::<(DownloadStarted, DownloadFinished)>()
+                    .insert(DownloadPending);
+                current_count += 1;
+                aborted_count += 1;
             }
         }
         info!(
@@ -237,8 +243,10 @@ fn start_planet_tile_download(
     if pending_tiles.is_empty() {
         return;
     }
-    let (task_tx, task_rx) = crossbeam_channel::bounded(100);
+
     let dispatch_count: usize = 16;
+    let (task_tx, task_rx) = crossbeam_channel::bounded(dispatch_count);
+
     for (target, tile, parent) in pending_tiles.iter().take(dispatch_count) {
         let planet_info = planet_q.get(parent.get()).expect("parent is planet");
         current_iter += 1;
@@ -251,18 +259,13 @@ fn start_planet_tile_download(
 
         runtime.spawn_background_task(move |mut _ctx| async move {
             let tokio_handle = tokio::task::spawn(async move {
-                let data = fetch_tile_data(
-                    tile,
-                    target,
-                    planet_info,
-                    server_config,
-                )
-                .await;
+                let data =
+                    fetch_tile_data(tile, target, planet_info, server_config)
+                        .await;
 
                 let _ = sender.send(Arc::new(data));
             });
             let _ = task_tx.send((target, tokio_handle));
-            drop(task_tx);
         });
     }
     for (target, task_h) in task_rx.into_iter().take(current_iter) {
