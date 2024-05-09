@@ -5,6 +5,7 @@ use crate::geo_trig;
 use crate::geo_trig::TileCoord;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
+use big_space::FloatingOrigin;
 use reqwest::StatusCode;
 use std::sync::Arc;
 
@@ -16,7 +17,8 @@ impl Plugin for EarthFetchPlugin {
             .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Update, start_planet_tile_download)
             .add_systems(Update, set_tiles_pending_when_planet_changes)
-            .add_systems(Startup, spawn_tile_fetch_channel);
+            .add_systems(Startup, spawn_tile_fetch_channel)
+            .add_systems(Update, check_if_tile_should_spawn_children);
     }
 }
 
@@ -43,6 +45,10 @@ pub struct WebMercatorTiledPlanet {
 #[derive(Component, Debug, Clone)]
 pub struct WebMercatorTile {
     pub coord: geo_trig::TileCoord,
+    pub parent_tile: Option<Entity>,
+    pub parent_planet: Entity,
+    pub children_tiles: Vec<Entity>,
+    pub cartesian_diagonal: f64,
 }
 
 #[derive(Component, Debug, Clone)]
@@ -158,6 +164,7 @@ fn spawn_root_planet_tiles(
                 tile.geo_bbox().to_tris(planet_info.planet_radius);
             let mesh = triangle_group.generate_mesh();
             let tile_center = triangle_group.center();
+            let tile_diagonal = triangle_group.diagonal();
             let mesh_handle = meshes.add(mesh);
 
             let bundle = (
@@ -169,7 +176,13 @@ fn spawn_root_planet_tiles(
                     ..default()
                 },
                 big_space::GridCell::<i64>::ZERO,
-                WebMercatorTile { coord: tile },
+                WebMercatorTile {
+                    coord: tile,
+                    parent_planet: planet_ent,
+                    parent_tile: None,
+                    children_tiles: [].into(),
+                    cartesian_diagonal: tile_diagonal as f64,
+                },
                 WebMercatorLeaf,
                 DownloadPending,
             );
@@ -356,5 +369,21 @@ fn insert_downloaded_planet_tiles(
         if dt_ms > 1.0 {
             info!("inserted {} materials in {} ms", current_iter, dt_ms);
         }
+    }
+}
+
+fn check_if_tile_should_spawn_children(
+    leaf_q: Query<
+        (Entity, &GlobalTransform, &WebMercatorTile),
+        With<WebMercatorLeaf>,
+    >,
+    camera_q: Query<
+        &GlobalTransform,
+        (With<FloatingOrigin>, Without<WebMercatorLeaf>),
+    >,
+) {
+    let camera_pos = camera_q.single().translation();
+    for (leaf_ent, leaf_transform, leaf_tile) in leaf_q.iter() {
+        let leaf_pos = leaf_transform.translation();
     }
 }

@@ -128,6 +128,13 @@ impl TileTriangleGroup {
     pub fn center(&self) -> Vec3 {
         self.mesh_center
     }
+    pub fn diagonal(&self) -> f32 {
+        self.tris
+            .iter()
+            .map(|x| x.max_edge_len)
+            .reduce(f32::max)
+            .expect("diagonal: no triangles?")
+    }
 }
 
 pub fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {

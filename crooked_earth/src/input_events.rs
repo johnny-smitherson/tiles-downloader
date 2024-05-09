@@ -1,15 +1,44 @@
-use bevy::input::mouse::MouseWheel;use bevy::input::mouse::MouseMotion;
+use bevy::input::mouse::MouseMotion;
+use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 pub struct InputEventsPlugin {}
 
 impl Plugin for InputEventsPlugin {
     fn build(&self, app: &mut App) {
+        app.insert_resource(PreventInteraction(false));
         app.add_systems(
             Update,
-            (mouse_wheel_input_system, keyboard_input_system, mouse_button_drag_moves_camera),
+            (
+                mouse_wheel_input_system,
+                keyboard_input_system,
+                mouse_button_drag_moves_camera,
+            )
+                .run_if(allow_input_events),
         );
+        app.add_systems(PreUpdate, check_prevent_input_events);
         app.add_event::<CameraMoveEvent>();
     }
+}
+
+#[derive(Debug, Resource, Deref, DerefMut)]
+struct PreventInteraction(bool);
+
+fn allow_input_events(prevent: Res<PreventInteraction>) -> bool {
+    !**prevent
+}
+
+fn check_prevent_input_events(
+    mut prevent: ResMut<PreventInteraction>,
+    mut egui_context: bevy_egui::EguiContexts,
+    interaction_query: Query<&Interaction, With<Node>>,
+) {
+    **prevent = egui_context.ctx_mut().is_pointer_over_area()
+        || interaction_query
+            .iter()
+            .any(|interaction| match *interaction {
+                Interaction::Hovered | Interaction::Pressed => true,
+                Interaction::None => false,
+            });
 }
 
 #[derive(Debug)]
@@ -63,10 +92,11 @@ fn mouse_button_drag_moves_camera(
     buttons: Res<ButtonInput<MouseButton>>,
     mut events: EventWriter<CameraMoveEvent>,
     time: Res<Time>,
-) {    
+) {
     let dt_cap = time.delta_seconds_f64().min(1.0 / 30.0);
     let drag_val = dt_cap * MOUSE_DRAG_INPUT_VALUE;
-    if buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Left) {
+    if buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Left)
+    {
         for ev in motion_evr.read() {
             events.send(CameraMoveEvent {
                 direction: CameraMoveDirection::LEFT,
