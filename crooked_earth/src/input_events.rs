@@ -42,13 +42,13 @@ fn mouse_wheel_input_system(
         match ev.unit {
             MouseScrollUnit::Line => {
                 events.send(CameraMoveEvent {
-                    direction: CameraMoveDirection::ZOOMOUT,
+                    direction: CameraMoveDirection::ZOOMIN,
                     value: ev.y as f64 * mouse_val,
                 });
             }
             MouseScrollUnit::Pixel => {
                 events.send(CameraMoveEvent {
-                    direction: CameraMoveDirection::ZOOMOUT,
+                    direction: CameraMoveDirection::ZOOMIN,
                     value: ev.y as f64 * mouse_val / 25.0,
                 });
             }

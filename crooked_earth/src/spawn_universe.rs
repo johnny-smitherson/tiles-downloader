@@ -15,6 +15,7 @@ use rand::Rng;
 
 use crate::earth_camera::EarthCamera;
 use crate::earth_fetch::WebMercatorTiledPlanet;
+use crate::util::get_current_timestamp;
 
 pub struct SpawnUniversePlugin {}
 
@@ -34,6 +35,9 @@ impl Plugin for SpawnUniversePlugin {
 
 #[derive(Component, Debug, Reflect)]
 struct TheUniverse;
+
+#[derive(Component, Debug, Reflect)]
+struct TheCamera;
 
 #[derive(Component, Debug, Reflect)]
 struct TheSun;
@@ -56,9 +60,34 @@ struct TheBall;
 #[derive(Component, Debug, Reflect)]
 struct Rotates(f32);
 
-fn rotate(mut rotate_query: Query<(&mut Transform, &Rotates)>) {
+fn rotate(mut rotate_query: Query<(&mut Transform, &Rotates)>, 
+    camera_q: Query<&GlobalTransform, With<TheCamera>>,
+    planet_q: Query<&GlobalTransform, (With<ThePlanet>, Without<TheCamera>)>,
+    sun_q: Query<&GlobalTransform, (With<TheSun>, Without<ThePlanet>, Without<TheCamera>)>,
+    mut current_speed: Local<f32>, mut reversed: Local<bool>, mut last_reversed: Local<f64>,
+) {
+    let min_speed = 1.0;
+    let max_speed = 120.0;
+    let exp_speedup = 1.5;
+
+    *current_speed = (*current_speed).min(max_speed).max(min_speed);
+    if let (Ok(camera), Ok(planet), Ok(sun)) = (camera_q.get_single(), planet_q.get_single(), sun_q.get_single()) {
+        let planet_to_camera = planet.translation() - camera.translation();
+        let planet_to_sun = planet.translation() - sun.translation();
+        if planet_to_camera.normalize().dot(planet_to_sun.normalize()) < 0.09 {
+            *current_speed *= exp_speedup;
+            if get_current_timestamp() - *last_reversed > 3.0 {
+                *reversed = !*reversed;
+                *last_reversed = get_current_timestamp();
+            }
+        } else {
+            *current_speed /= exp_speedup.powf(2.0) + 1.0;
+        }
+    }
+    *current_speed = (*current_speed).min(max_speed).max(min_speed);
+    let reversed = if *reversed {-1.0} else {1.0};
     for (mut transform, rotates) in rotate_query.iter_mut() {
-        transform.rotate_local_y(rotates.0);
+        transform.rotate_local_y(rotates.0 * *current_speed * reversed);
     }
 }
 
@@ -93,6 +122,7 @@ fn spawn_camera(mut commands: Commands) {
                         //     .with_speed_bounds([10e-18, 10e35])
                         //     .with_smoothness(0.9, 0.8)
                         //     .with_speed(1.0),
+                        TheCamera
     ));
 }
 
@@ -228,7 +258,7 @@ fn spawn_planet(
             Name::new("The Planet"),
             FloatingSpatialBundle {
                 grid_position: earth_cell,
-                transform: Transform::from_translation(earth_pos),
+                transform: Transform::from_translation(earth_pos).with_rotation(Quat::from_rotation_y(15f32.to_radians())),
                 ..default()
             },
             ReferenceFrame::<i64>::default(),
@@ -274,7 +304,7 @@ fn spawn_moon(
                 Name::new("The Moon"),
                 FloatingSpatialBundle {
                     grid_position: moon_cell,
-                    transform: Transform::from_translation(moon_pos),
+                    transform: Transform::from_translation(moon_pos).with_rotation(Quat::from_rotation_x(15f32.to_radians())),
                     ..default()
                 },
                 TheMoon,
