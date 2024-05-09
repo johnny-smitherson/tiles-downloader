@@ -17,8 +17,12 @@ impl Plugin for EarthFetchPlugin {
             .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Update, start_planet_tile_download)
             .add_systems(Update, set_tiles_pending_when_planet_changes)
-            .add_systems(Startup, spawn_tile_fetch_channel)
-            .add_systems(Update, check_if_tile_should_spawn_children);
+            .add_systems(
+                Startup,
+                (create_standard_material, spawn_tile_fetch_channel),
+            )
+            .add_systems(PostUpdate, check_if_tile_should_spawn_children.after(bevy::transform::TransformSystem::TransformPropagate))
+            .add_systems(PreUpdate, spawn_tile_pls);
     }
 }
 
@@ -132,68 +136,117 @@ async fn fetch_tile_data(
     }
 }
 
+#[derive(Debug, Clone, Resource)]
+struct DebugMaterials {
+    img1: Handle<Image>,
+    mat1: Handle<StandardMaterial>,
+}
+
+fn create_standard_material(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let img1 = images.add(crate::util::uv_debug_texture());
+    let mat1 = materials.add(StandardMaterial {
+        base_color_texture: Some(img1.clone()),
+        perceptual_roughness: 1.0,
+        reflectance: 0.0,
+        alpha_mode: AlphaMode::Mask(0.5),
+        ..default()
+    });
+    commands.insert_resource(DebugMaterials { img1, mat1 });
+}
+
+#[derive(Debug, Clone, Component)]
+struct SpawnTilePls {
+    webtile: WebMercatorTile,
+    planet_info: WebMercatorTiledPlanet,
+}
+
+fn spawn_tile_pls(
+    q: Query<(Entity, &SpawnTilePls)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut commands: Commands,
+    dbg_mat: Res<DebugMaterials>,
+) {
+    // MACRO PLZ
+    let mut total_tiles = 0;
+    let t0 = crate::util::get_current_timestamp();
+
+    for (target_ent, req) in q.into_iter() {
+        total_tiles += 1;
+        let tile = req.webtile.coord;
+        let triangle_group =
+            tile.geo_bbox().to_tris(req.planet_info.planet_radius);
+        let mesh = triangle_group.generate_mesh();
+        let tile_center = triangle_group.center();
+        let tile_diagonal = triangle_group.diagonal();
+        let mesh_handle = meshes.add(mesh);
+
+        let bundle = (
+            Name::new(format!("{} {:?}", req.planet_info.planet_name, tile)),
+            PbrBundle {
+                mesh: mesh_handle,
+                material: dbg_mat.mat1.clone(),
+                transform: Transform::from_translation(tile_center),
+                visibility: Visibility::Visible,
+                ..default()
+            },
+            big_space::GridCell::<i64>::ZERO,
+            WebMercatorTile {
+                coord: tile,
+                parent_planet: req.webtile.parent_planet,
+                parent_tile: req.webtile.parent_tile,
+                children_tiles: req.webtile.children_tiles.clone(),
+                cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
+            },
+            WebMercatorLeaf,
+            DownloadPending,
+        );
+        commands
+            .entity(target_ent)
+            .remove::<SpawnTilePls>()
+            .insert(bundle)
+            .set_parent(req.webtile.parent_planet);
+    }
+
+    // MACRO PLZ
+    if total_tiles > 0 {
+        let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
+        let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
+        if dt_ms > 1.0 {
+            info!("spawned {} tiles in {} ms", total_tiles, dt_ms);
+        }
+    }
+}
+
 fn spawn_root_planet_tiles(
     planets_q: Query<
         (Entity, &WebMercatorTiledPlanet),
         Added<WebMercatorTiledPlanet>,
     >,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
 ) {
     if planets_q.is_empty() {
         return;
     }
-    let default_img_handle = images.add(crate::util::uv_debug_texture());
-    let default_mat_handle = materials.add(StandardMaterial {
-        base_color_texture: Some(default_img_handle),
-        perceptual_roughness: 1.0,
-        reflectance: 0.0,
-        ..default()
-    });
 
     for (planet_ent, planet_info) in planets_q.iter() {
-        let mut total_tiles = 0;
-        let t0 = crate::util::get_current_timestamp();
         for tile in
             geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
         {
-            total_tiles += 1;
-            let triangle_group =
-                tile.geo_bbox().to_tris(planet_info.planet_radius);
-            let mesh = triangle_group.generate_mesh();
-            let tile_center = triangle_group.center();
-            let tile_diagonal = triangle_group.diagonal();
-            let mesh_handle = meshes.add(mesh);
-
-            let bundle = (
-                Name::new(format!("{} {:?}", planet_info.planet_name, tile)),
-                PbrBundle {
-                    mesh: mesh_handle,
-                    material: default_mat_handle.clone(),
-                    transform: Transform::from_translation(tile_center),
-                    ..default()
-                },
-                big_space::GridCell::<i64>::ZERO,
-                WebMercatorTile {
+            commands.spawn(SpawnTilePls {
+                planet_info: planet_info.clone(),
+                webtile: WebMercatorTile {
                     coord: tile,
                     parent_planet: planet_ent,
                     parent_tile: None,
                     children_tiles: [].into(),
-                    cartesian_diagonal: tile_diagonal as f64,
+                    cartesian_diagonal: 0.0,
                 },
-                WebMercatorLeaf,
-                DownloadPending,
-            );
-            commands.spawn(bundle).set_parent(planet_ent);
+            });
         }
-        let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
-        let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        info!(
-            "spawned {} tiles in {} ms for planet {:?}",
-            total_tiles, dt_ms, planet_info
-        );
     }
 }
 
@@ -381,9 +434,38 @@ fn check_if_tile_should_spawn_children(
         &GlobalTransform,
         (With<FloatingOrigin>, Without<WebMercatorLeaf>),
     >,
+    planetinfo_q: Query<&WebMercatorTiledPlanet>,
+    tileservers: Res<TileServers>,
+    mut commands: Commands,
 ) {
     let camera_pos = camera_q.single().translation();
     for (leaf_ent, leaf_transform, leaf_tile) in leaf_q.iter() {
         let leaf_pos = leaf_transform.translation();
+        let dist_leaf_to_cam = (leaf_pos - camera_pos).length();
+        let screen_coverage =
+            leaf_tile.cartesian_diagonal as f32 / dist_leaf_to_cam;
+        let planet_info = planetinfo_q
+            .get(leaf_tile.parent_planet)
+            .expect("parent of leaf is not planet");
+        let tileserver = tileservers.get(&planet_info.tile_type);
+
+        if screen_coverage > 0.3 && leaf_tile.coord.z <= tileserver.max_level {
+            commands.entity(leaf_ent).remove::<WebMercatorLeaf>();
+            let mut new_leaf_tile = leaf_tile.clone();
+            for child_tile in leaf_tile.coord.children() {
+                let child_id = commands.spawn(SpawnTilePls {
+                    planet_info: planet_info.clone(),
+                    webtile: WebMercatorTile {
+                        coord: child_tile,
+                        parent_planet: leaf_tile.parent_planet,
+                        parent_tile: leaf_tile.parent_tile,
+                        children_tiles: [].into(),
+                        cartesian_diagonal: 0.0,
+                    },
+                }).id();
+                new_leaf_tile.children_tiles.push(child_id);
+            }
+            commands.entity(leaf_ent).insert(new_leaf_tile);
+        }
     }
 }

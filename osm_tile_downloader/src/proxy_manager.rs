@@ -379,8 +379,11 @@ pub fn get_random_proxies(_url: &str, count: u8) -> Vec<Socks5ProxyEntry> {
             &mut rand::thread_rng(),
             count as usize,
             |x| {
-                (1 + 2 * x.last_success_count) as f64
-                    / (1 + x.last_success_count + x.last_err_count) as f64
+                let w1 = 
+                (1 + x.last_success_count) as f64
+                    / (1 + x.last_success_count + x.last_err_count) as f64;
+                let w2 = 1.0 / (1.0 + x.last_lag.unwrap_or(10.0));
+                w1 * w2
             },
         )
         .expect("cannot random choose proxy items?")
@@ -618,7 +621,7 @@ async fn download_in_parallel<T: DownloadId + 'static>(
     {
         let temp_path = temp.file_path().clone();
         all_temps.push(temp_path.clone());
-        let initial_delay = Duration::from_millis(50 + 5550 * i as u64);
+        let initial_delay = Duration::from_millis(50 + 3550 * i as u64);
         let download_id2 = download_id.clone();
         let task = tokio::task::spawn(download_once_2(
             download_id2,
@@ -629,14 +632,14 @@ async fn download_in_parallel<T: DownloadId + 'static>(
         ));
         parallel_tasks.push(task);
 
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        tokio::time::sleep(Duration::from_millis(16)).await;
     }
 
     // extract the good result
     let mut _ok_result = None;
     let mut _errors = vec![];
     loop {
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        tokio::time::sleep(Duration::from_millis(16)).await;
         match parallel_tasks.next().await {
             Some(result) => {
                 let result =

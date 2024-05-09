@@ -277,7 +277,7 @@ fn spawn_planet(
             ThePlanet,
             WebMercatorTiledPlanet {
                 planet_name: "earth".into(),
-                root_zoom_level: 5,
+                root_zoom_level: 3,
                 tile_type: "arcgis_sat".into(),
                 planet_radius: crate::universal_const::EARTH_RADIUS_M as f64,
             },
@@ -324,7 +324,7 @@ fn spawn_moon(
                 TheMoon,
                 WebMercatorTiledPlanet {
                     planet_name: "moon".into(),
-                    root_zoom_level: 4,
+                    root_zoom_level: 3,
                     tile_type: "google_moon".into(),
                     planet_radius: crate::universal_const::MOON_RADIUS_M as f64,
                 },

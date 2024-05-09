@@ -12,6 +12,19 @@ pub struct TileCoord {
 }
 
 impl TileCoord {
+    pub fn children(&self) -> Vec<TileCoord> {
+        let mut v = vec![];
+        for ki in 0..=1 {
+            for kj in 0..=1 {
+                v.push(TileCoord {
+                    x: 2 * self.x + ki,
+                    y: 2 * self.y + kj,
+                    z: self.z + 1,
+                });
+            }
+        }
+        v
+    }
     pub fn get_root_tiles(z: u8) -> Vec<TileCoord> {
         let mut vec = Vec::<TileCoord>::new();
         for x in 0..2_u64.pow(z as u32) {
