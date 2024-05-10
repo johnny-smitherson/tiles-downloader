@@ -3,6 +3,9 @@
 use crate::geo_trig;
 use crate::input_events::CameraMoveEvent;
 use bevy::prelude::*;
+use bevy::math::DVec3;
+use big_space::reference_frame::RootReferenceFrame;
+use big_space::GridCell;
 
 pub struct EarthCameraPlugin {}
 
@@ -27,11 +30,12 @@ pub struct Sun;
 const MAX_CAMERA_Y_DEG: f64 = 84.0;
 
 impl EarthCamera {
-    pub fn get_abs_transform(&self) -> Transform {
+    pub fn get_abs_transform(&self) -> (Transform, DVec3) {
         let xyz = geo_trig::gps_to_cartesian(self.geo_x_deg, self.geo_y_deg)
             .normalize()
-            * (self.min_camera_alt + self.geo_alt) as f32;
-        Transform::from_translation(xyz).looking_at(Vec3::ZERO, Vec3::Y)
+            * (self.min_camera_alt + self.geo_alt);
+        let tr = Transform::from_translation(xyz.as_vec3()).looking_at(Vec3::ZERO, Vec3::Y);
+        (tr, xyz)
     }
 
     fn limit_fields(&mut self) {
@@ -99,22 +103,24 @@ impl EarthCamera {
 
 fn read_camera_input_events(
     mut camera_events: EventReader<CameraMoveEvent>,
-    mut camera_q: Query<(&mut EarthCamera, &mut Transform)>,
+    mut camera_q: Query<(&mut EarthCamera, &mut Transform, &mut GridCell<i64>)>,
+    space: Res<RootReferenceFrame<i64>>,
 ) {
     let events: Vec<_> = camera_events.read().collect();
     if events.is_empty() {
         return;
     }
-    for (mut cam, mut transform) in camera_q.iter_mut() {
-        let old_transform = cam.get_abs_transform();
+    for (mut cam, mut transform, mut cell) in camera_q.iter_mut() {
+        // let old_transform = cam.get_abs_transform();
         for ev in events.iter() {
             cam.accept_event(ev);
             cam.limit_fields();
         }
-        let new_transform = cam.get_abs_transform();
-        transform.translation +=
-            new_transform.translation - old_transform.translation;
-        transform.rotation = new_transform.rotation;
+        let (tr, xyz) = cam.get_abs_transform();
+        let (new_cell, crop_tr) = space.translation_to_grid(xyz);
+        *cell = new_cell;
+        transform.translation = crop_tr;
+        transform.rotation = tr.rotation;
     }
 }
 

@@ -6,6 +6,7 @@ use crate::geo_trig::TileCoord;
 use crate::util::get_current_timestamp;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
+use big_space::reference_frame::RootReferenceFrame;
 use big_space::FloatingOrigin;
 use reqwest::StatusCode;
 use std::sync::Arc;
@@ -172,6 +173,8 @@ fn spawn_tile_pls(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     dbg_mat: Res<DebugMaterials>,
+    space: Res<RootReferenceFrame<i64>>,
+    tileservers: Res<TileServers>,
 ) {
     // MACRO PLZ
     let mut total_tiles = 0;
@@ -183,20 +186,24 @@ fn spawn_tile_pls(
         let triangle_group =
             tile.geo_bbox().to_tris(req.planet_info.planet_radius);
         let mesh = triangle_group.generate_mesh();
-        let tile_center = triangle_group.center();
         let tile_diagonal = triangle_group.diagonal();
         let mesh_handle = meshes.add(mesh);
+        let tile_center = triangle_group.center();
+        let downwards_level = tileservers.get(&req.planet_info.tile_type).max_level as f64- tile.z as f64;
+        let tile_center = tile_center - tile_center.normalize() * downwards_level;
+
+        let (tile_cell, tile_trans) = space.translation_to_grid(tile_center);
 
         let bundle = (
             Name::new(format!("{} {:?}", req.planet_info.planet_name, tile)),
             PbrBundle {
                 mesh: mesh_handle,
                 material: dbg_mat.mat1.clone(),
-                transform: Transform::from_translation(tile_center),
+                transform: Transform::from_translation(tile_trans),
                 visibility: Visibility::Visible,
                 ..default()
             },
-            big_space::GridCell::<i64>::ZERO,
+            tile_cell,
             WebMercatorTile {
                 coord: tile,
                 parent_planet: req.webtile.parent_planet,
@@ -463,7 +470,7 @@ fn check_if_tile_should_spawn_children(
             .expect("parent of leaf is not planet");
         let tileserver = tileservers.get(&planet_info.tile_type);
 
-        if screen_coverage > 0.3 && leaf_tile.coord.z <= tileserver.max_level {
+        if screen_coverage > 0.3 && leaf_tile.coord.z < tileserver.max_level {
             commands.entity(leaf_ent).remove::<WebMercatorLeaf>();
             let mut new_leaf_tile = leaf_tile.clone();
             for child_tile in leaf_tile.coord.children() {

@@ -342,6 +342,7 @@ fn reparent_camera(
         (Entity, &mut GridCell<i64>, &mut Transform),
         With<FloatingOrigin>,
     >,
+    space: Res<RootReferenceFrame<i64>>,
 ) {
     if !parent.get_single().is_ok() {
         return;
@@ -349,7 +350,7 @@ fn reparent_camera(
     let parent = parent.single();
     info!("when_the_planet_appears_spawn_the_camera");
 
-    let (camera_ent, mut _camera_gridcell_ref, mut camera_trans_ref) =
+    let (camera_ent, mut camera_gridcell_ref, mut camera_trans_ref) =
         camera_q.single_mut();
 
     let cam_info = EarthCamera::from_planet_radius(
@@ -363,7 +364,11 @@ fn reparent_camera(
         .set_parent(parent)
         .insert(cam_info.clone());
     // *camera_gridcell_ref = cam_cell;
-    *camera_trans_ref = cam_info.get_abs_transform();
+    let (tr_big, xyz) = cam_info.get_abs_transform();
+    let (new_cell, new_pos) = space.translation_to_grid(xyz);
+    camera_trans_ref.rotation = tr_big.rotation;
+    camera_trans_ref.translation = new_pos;
+    *camera_gridcell_ref = new_cell;
 }
 
 fn spawn_the_ball(

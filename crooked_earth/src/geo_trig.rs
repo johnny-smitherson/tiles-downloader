@@ -3,6 +3,7 @@ use std::f64::consts::PI;
 use bevy::prelude::*;
 use bevy::render::mesh::{self, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::math::DVec3;
 
 #[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TileCoord {
@@ -80,13 +81,13 @@ impl GeoBBox {
         let uv4 = Vec2::X + Vec2::Y;
 
         let p1 = gps_to_cartesian(self.lon_west, self.lat_north)
-            * sphere_radius as f32;
+            * sphere_radius;
         let p2 = gps_to_cartesian(self.lon_east, self.lat_north)
-            * sphere_radius as f32;
+            * sphere_radius ;
         let p3 = gps_to_cartesian(self.lon_west, self.lat_south)
-            * sphere_radius as f32;
+            * sphere_radius;
         let p4 = gps_to_cartesian(self.lon_east, self.lat_south)
-            * sphere_radius as f32;
+            * sphere_radius;
         let mesh_center = (p1 + p2 + p3 + p4) / 4.0;
         TileTriangleGroup {
             tris: vec![
@@ -103,7 +104,7 @@ impl GeoBBox {
 #[derive(Reflect, Debug, Clone)]
 pub struct TileTriangleGroup {
     tris: Vec<TriangleData>,
-    mesh_center: Vec3,
+    mesh_center: DVec3,
     sphere_radius: f64,
 }
 
@@ -138,7 +139,7 @@ impl TileTriangleGroup {
         mesh
     }
 
-    pub fn center(&self) -> Vec3 {
+    pub fn center(&self) -> DVec3 {
         self.mesh_center
     }
     pub fn diagonal(&self) -> f32 {
@@ -150,7 +151,7 @@ impl TileTriangleGroup {
     }
 }
 
-pub fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {
+pub fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> DVec3 {
     // Vec3 {
     //     x:(lat) as f32/360.0,
     //     y:(lon) as f32/360.0,
@@ -159,10 +160,10 @@ pub fn gps_to_cartesian(lon_deg: f64, lat_deg: f64) -> Vec3 {
     let lat = lat_deg.to_radians();
     let lon = lon_deg.to_radians();
 
-    Vec3 {
-        x: -(lat.cos() * lon.cos()) as f32,
-        z: (lat.cos() * lon.sin()) as f32,
-        y: (lat.sin()) as f32,
+    DVec3 {
+        x: -(lat.cos() * lon.cos()),
+        z: (lat.cos() * lon.sin()),
+        y: (lat.sin()),
     }
 }
 
@@ -176,7 +177,7 @@ pub struct TriangleData {
 }
 
 impl TriangleData {
-    fn new(verts: [Vec3; 3], uvs: [Vec2; 3], mesh_origin: Vec3) -> Self {
+    fn new(verts: [DVec3; 3], uvs: [Vec2; 3], mesh_origin: DVec3) -> Self {
         // let mut rng = rand::thread_rng();
 
         // let v12 = verts[2] - verts[1];
@@ -184,20 +185,18 @@ impl TriangleData {
         // let norm = -v12.cross(v01).normalize();
         // let normals = [norm, norm, norm];
         let normals = [
-            verts[0].normalize(),
-            verts[1].normalize(),
-            verts[2].normalize(),
+            verts[0].normalize().as_vec3(),
+            verts[1].normalize().as_vec3(),
+            verts[2].normalize().as_vec3(),
         ];
-
-        let l1 = (verts[0] - verts[1]).length();
-        let l2 = (verts[2] - verts[1]).length();
-        let l3 = (verts[0] - verts[2]).length();
+        let l1 = (verts[0] - verts[1]).length() as f32;
+        let l2 = (verts[2] - verts[1]).length() as f32;
+        let l3 = (verts[0] - verts[2]).length() as f32;
         let verts = [
-            verts[0] - mesh_origin,
-            verts[1] - mesh_origin,
-            verts[2] - mesh_origin,
+            (verts[0] - mesh_origin).as_vec3(),
+            (verts[1] - mesh_origin).as_vec3(),
+            (verts[2] - mesh_origin).as_vec3(),
         ];
-
         Self {
             verts,
             uvs,
