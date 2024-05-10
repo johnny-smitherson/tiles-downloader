@@ -3,6 +3,7 @@ use crate::config_tileserver::{self, TileServers};
 use crate::diagnostics::{DownloadFinished, DownloadPending, DownloadStarted};
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
+use crate::util::get_current_timestamp;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use big_space::FloatingOrigin;
@@ -56,7 +57,9 @@ pub struct WebMercatorTile {
 }
 
 #[derive(Component, Debug, Clone)]
-pub struct WebMercatorLeaf;
+pub struct WebMercatorLeaf {
+    last_check: f64,
+}
 
 #[derive(Debug)]
 pub struct TileFetchResultData {
@@ -201,7 +204,7 @@ fn spawn_tile_pls(
                 children_tiles: req.webtile.children_tiles.clone(),
                 cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
             },
-            WebMercatorLeaf,
+            WebMercatorLeaf{last_check: 0.0},
             DownloadPending,
         );
         commands
@@ -427,7 +430,7 @@ fn insert_downloaded_planet_tiles(
 
 fn check_if_tile_should_spawn_children(
     leaf_q: Query<
-        (Entity, &GlobalTransform, &WebMercatorTile),
+        (Entity, &GlobalTransform, &WebMercatorTile, &WebMercatorLeaf),
         With<WebMercatorLeaf>,
     >,
     camera_q: Query<
@@ -439,7 +442,18 @@ fn check_if_tile_should_spawn_children(
     mut commands: Commands,
 ) {
     let camera_pos = camera_q.single().translation();
-    for (leaf_ent, leaf_transform, leaf_tile) in leaf_q.iter() {
+    let now = get_current_timestamp();
+    const CHECK_INTERVAL_S: f64 = 1.0;
+    let mut iter_count = 0;
+    for (leaf_ent, leaf_transform, leaf_tile, leaf_info) in leaf_q.iter() {
+        if now - leaf_info.last_check < CHECK_INTERVAL_S {
+            continue;
+        }
+        iter_count += 1;
+        if iter_count > 128 {
+            break;
+        }
+        commands.entity(leaf_ent).insert(WebMercatorLeaf{last_check:now});
         let leaf_pos = leaf_transform.translation();
         let dist_leaf_to_cam = (leaf_pos - camera_pos).length();
         let screen_coverage =
