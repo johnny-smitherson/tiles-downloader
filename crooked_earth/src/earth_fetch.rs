@@ -385,6 +385,9 @@ fn start_planet_tile_download(
             });
             let _ = task_tx.send((target, tokio_handle));
         });
+        if get_current_timestamp() - t0 > 0.001 {
+            break;
+        }
     }
     for (target, task_h) in task_rx.into_iter().take(current_iter) {
         commands
