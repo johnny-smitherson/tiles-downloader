@@ -1,9 +1,9 @@
 use std::f64::consts::PI;
 
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::mesh::{self, PrimitiveTopology};
 use bevy::render::render_asset::RenderAssetUsages;
-use bevy::math::DVec3;
 
 #[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TileCoord {
@@ -80,14 +80,14 @@ impl GeoBBox {
         let uv3 = Vec2::Y;
         let uv4 = Vec2::X + Vec2::Y;
 
-        let p1 = gps_to_cartesian(self.lon_west, self.lat_north)
-            * sphere_radius;
-        let p2 = gps_to_cartesian(self.lon_east, self.lat_north)
-            * sphere_radius ;
-        let p3 = gps_to_cartesian(self.lon_west, self.lat_south)
-            * sphere_radius;
-        let p4 = gps_to_cartesian(self.lon_east, self.lat_south)
-            * sphere_radius;
+        let p1 =
+            gps_to_cartesian(self.lon_west, self.lat_north) * sphere_radius;
+        let p2 =
+            gps_to_cartesian(self.lon_east, self.lat_north) * sphere_radius;
+        let p3 =
+            gps_to_cartesian(self.lon_west, self.lat_south) * sphere_radius;
+        let p4 =
+            gps_to_cartesian(self.lon_east, self.lat_south) * sphere_radius;
         let mesh_center = (p1 + p2 + p3 + p4) / 4.0;
         TileTriangleGroup {
             tris: vec![

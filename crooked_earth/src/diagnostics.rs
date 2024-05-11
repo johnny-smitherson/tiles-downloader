@@ -8,6 +8,8 @@ use bevy_screen_diagnostics::{
     ScreenEntityDiagnosticsPlugin, ScreenFrameDiagnosticsPlugin,
 };
 
+use crate::earth_fetch::*;
+
 pub struct CustomDiagnosticsPlugin {}
 
 const DL_PENDING: DiagnosticPath = DiagnosticPath::const_new("dl_pending");
@@ -37,15 +39,6 @@ impl Plugin for CustomDiagnosticsPlugin {
         .add_systems(Update, count_diagnostic);
     }
 }
-
-#[derive(Debug, Component, Default)]
-pub struct DownloadPending;
-
-#[derive(Debug, Component)]
-pub struct DownloadStarted(pub tokio::task::JoinHandle<()>);
-
-#[derive(Debug, Component, Default)]
-pub struct DownloadFinished;
 
 fn setup_diagnostic(mut onscreen: ResMut<ScreenDiagnostics>) {
     onscreen

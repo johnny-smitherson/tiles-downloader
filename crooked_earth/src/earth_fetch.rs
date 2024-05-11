@@ -1,13 +1,14 @@
 use crate::bevy_tokio_tasks::TokioTasksRuntime;
 use crate::config_tileserver::{self, TileServers};
-use crate::diagnostics::{DownloadFinished, DownloadPending, DownloadStarted};
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
 use crate::util::get_current_timestamp;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
+use bevy::utils::hashbrown::HashSet;
 use big_space::reference_frame::RootReferenceFrame;
 use big_space::FloatingOrigin;
+use rand::{thread_rng, Rng};
 use reqwest::StatusCode;
 use std::sync::Arc;
 
@@ -15,7 +16,19 @@ pub struct EarthFetchPlugin {}
 
 impl Plugin for EarthFetchPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_root_planet_tiles)
+        app.register_type::<DownloadPending>()
+            .register_type::<DownloadStarted>()
+            .register_type::<DownloadFinished>()
+            .register_type::<TileFetchReceiver>()
+            .register_type::<TileFetchSender>()
+            .register_type::<WebMercatorTile>()
+            .register_type::<WebMercatorTiledPlanet>()
+            .register_type::<WebMercatorLeaf>()
+            .register_type::<DebugMaterials>()
+            .register_type::<TileSplitPls>()
+            .register_type::<TileMergePls>()
+            .register_type::<SpawnTilePls>()
+            .add_systems(Update, spawn_root_planet_tiles)
             .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Update, start_planet_tile_download)
             .add_systems(Update, set_tiles_pending_when_planet_changes)
@@ -23,16 +36,38 @@ impl Plugin for EarthFetchPlugin {
                 Startup,
                 (create_standard_material, spawn_tile_fetch_channel),
             )
-            .add_systems(PostUpdate, check_if_tile_should_spawn_children.after(bevy::transform::TransformSystem::TransformPropagate))
-            .add_systems(PreUpdate, spawn_tile_pls);
+            .add_systems(
+                PostUpdate,
+                (check_merge_or_split).after(
+                    bevy::transform::TransformSystem::TransformPropagate,
+                ),
+            )
+            .add_systems(PreUpdate, (spawn_tile_pls, split_tiles_pls, merge_tiles_pls));
     }
 }
 
-#[derive(Resource, Deref)]
-struct TileFetchReceiver(crossbeam_channel::Receiver<Arc<TileFetchResultData>>);
+#[derive(Debug, Component, Default, Reflect)]
+pub struct DownloadPending;
 
-#[derive(Resource, Deref)]
-struct TileFetchSender(crossbeam_channel::Sender<Arc<TileFetchResultData>>);
+#[derive(Debug, Component, Reflect)]
+// #[reflect(no_field_bounds)]
+#[reflect(from_reflect = false)]
+pub struct DownloadStarted(#[reflect(ignore)] tokio::task::JoinHandle<()>);
+
+#[derive(Debug, Component, Default, Reflect)]
+pub struct DownloadFinished;
+
+#[derive(Resource, Deref, Reflect)]
+#[reflect(from_reflect = false)]
+struct TileFetchReceiver(
+    #[reflect(ignore)] crossbeam_channel::Receiver<Arc<TileFetchResultData>>,
+);
+
+#[derive(Resource, Deref, Reflect)]
+#[reflect(from_reflect = false)]
+struct TileFetchSender(
+    #[reflect(ignore)] crossbeam_channel::Sender<Arc<TileFetchResultData>>,
+);
 
 fn spawn_tile_fetch_channel(mut commands: Commands) {
     let (tx, rx) = crossbeam_channel::bounded(1000);
@@ -40,7 +75,7 @@ fn spawn_tile_fetch_channel(mut commands: Commands) {
     commands.insert_resource(TileFetchSender(tx));
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Reflect)]
 pub struct WebMercatorTiledPlanet {
     pub planet_name: String,
     pub root_zoom_level: u8,
@@ -48,7 +83,7 @@ pub struct WebMercatorTiledPlanet {
     pub planet_radius: f64,
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Reflect)]
 pub struct WebMercatorTile {
     pub coord: geo_trig::TileCoord,
     pub parent_tile: Option<Entity>,
@@ -57,7 +92,7 @@ pub struct WebMercatorTile {
     pub cartesian_diagonal: f64,
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Reflect)]
 pub struct WebMercatorLeaf {
     last_check: f64,
 }
@@ -140,9 +175,9 @@ async fn fetch_tile_data(
     }
 }
 
-#[derive(Debug, Clone, Resource)]
+#[derive(Debug, Clone, Resource, Reflect)]
 struct DebugMaterials {
-    img1: Handle<Image>,
+    _img1: Handle<Image>,
     mat1: Handle<StandardMaterial>,
 }
 
@@ -159,13 +194,16 @@ fn create_standard_material(
         alpha_mode: AlphaMode::Mask(0.5),
         ..default()
     });
-    commands.insert_resource(DebugMaterials { img1, mat1 });
+    commands.insert_resource(DebugMaterials { _img1: img1, mat1 });
 }
 
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Clone, Component, Reflect)]
 struct SpawnTilePls {
     webtile: WebMercatorTile,
-    planet_info: WebMercatorTiledPlanet,
+}
+
+fn rand_float() -> f64 {
+    thread_rng().gen_range(0.0..1.0)
 }
 
 fn spawn_tile_pls(
@@ -175,27 +213,32 @@ fn spawn_tile_pls(
     dbg_mat: Res<DebugMaterials>,
     space: Res<RootReferenceFrame<i64>>,
     tileservers: Res<TileServers>,
+    planetinfo_q: Query<&WebMercatorTiledPlanet>,
 ) {
     // MACRO PLZ
     let mut total_tiles = 0;
     let t0 = crate::util::get_current_timestamp();
 
-    for (target_ent, req) in q.into_iter() {
+    for (target_ent, req) in q.into_iter().take(128) {
         total_tiles += 1;
+        let planet_info = planetinfo_q.get(req.webtile.parent_planet).expect("planet not found");
         let tile = req.webtile.coord;
         let triangle_group =
-            tile.geo_bbox().to_tris(req.planet_info.planet_radius);
+            tile.geo_bbox().to_tris(planet_info.planet_radius);
         let mesh = triangle_group.generate_mesh();
         let tile_diagonal = triangle_group.diagonal();
         let mesh_handle = meshes.add(mesh);
         let tile_center = triangle_group.center();
-        let downwards_level = tileservers.get(&req.planet_info.tile_type).max_level as f64- tile.z as f64;
-        let tile_center = tile_center - tile_center.normalize() * downwards_level;
+        let downwards_level =
+            tileservers.get(&planet_info.tile_type).max_level as f64
+                - tile.z as f64;
+        let tile_center =
+            tile_center - tile_center.normalize() * downwards_level;
 
         let (tile_cell, tile_trans) = space.translation_to_grid(tile_center);
 
         let bundle = (
-            Name::new(format!("{} {:?}", req.planet_info.planet_name, tile)),
+            Name::new(format!("{} {:?}", planet_info.planet_name, tile)),
             PbrBundle {
                 mesh: mesh_handle,
                 material: dbg_mat.mat1.clone(),
@@ -211,7 +254,7 @@ fn spawn_tile_pls(
                 children_tiles: req.webtile.children_tiles.clone(),
                 cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
             },
-            WebMercatorLeaf{last_check: 0.0},
+            WebMercatorLeaf { last_check: get_current_timestamp() + rand_float() },
             DownloadPending,
         );
         commands
@@ -247,7 +290,6 @@ fn spawn_root_planet_tiles(
             geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
         {
             commands.spawn(SpawnTilePls {
-                planet_info: planet_info.clone(),
                 webtile: WebMercatorTile {
                     coord: tile,
                     parent_planet: planet_ent,
@@ -435,7 +477,7 @@ fn insert_downloaded_planet_tiles(
     }
 }
 
-fn check_if_tile_should_spawn_children(
+fn check_merge_or_split(
     leaf_q: Query<
         (Entity, &GlobalTransform, &WebMercatorTile, &WebMercatorLeaf),
         With<WebMercatorLeaf>,
@@ -446,47 +488,142 @@ fn check_if_tile_should_spawn_children(
     >,
     planetinfo_q: Query<&WebMercatorTiledPlanet>,
     tileservers: Res<TileServers>,
+    get_tileinfo_q: Query<&WebMercatorTile>,
     mut commands: Commands,
 ) {
     let camera_pos = camera_q.single().translation();
     let now = get_current_timestamp();
     const CHECK_INTERVAL_S: f64 = 1.0;
     let mut iter_count = 0;
-    for (leaf_ent, leaf_transform, leaf_tile, leaf_info) in leaf_q.iter() {
-        if now - leaf_info.last_check < CHECK_INTERVAL_S {
+    const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.3;
+    for (leaf_ent, leaf_transform, tile_info, leaf_marker) in leaf_q.iter() {
+        if now - leaf_marker.last_check < CHECK_INTERVAL_S {
             continue;
         }
         iter_count += 1;
-        if iter_count > 128 {
-            break;
-        }
-        commands.entity(leaf_ent).insert(WebMercatorLeaf{last_check:now});
+
+        commands
+            .entity(leaf_ent)
+            .insert(WebMercatorLeaf { last_check: now + rand_float()});
         let leaf_pos = leaf_transform.translation();
         let dist_leaf_to_cam = (leaf_pos - camera_pos).length();
         let screen_coverage =
-            leaf_tile.cartesian_diagonal as f32 / dist_leaf_to_cam;
+            tile_info.cartesian_diagonal as f32 / dist_leaf_to_cam;
         let planet_info = planetinfo_q
-            .get(leaf_tile.parent_planet)
+            .get(tile_info.parent_planet)
             .expect("parent of leaf is not planet");
         let tileserver = tileservers.get(&planet_info.tile_type);
 
-        if screen_coverage > 0.3 && leaf_tile.coord.z < tileserver.max_level {
-            commands.entity(leaf_ent).remove::<WebMercatorLeaf>();
-            let mut new_leaf_tile = leaf_tile.clone();
-            for child_tile in leaf_tile.coord.children() {
-                let child_id = commands.spawn(SpawnTilePls {
-                    planet_info: planet_info.clone(),
+        if screen_coverage > SCREEN_COVERAGE_FOR_SPLIT
+            && tile_info.coord.z < tileserver.max_level
+        {
+            commands
+                .entity(leaf_ent)
+                .remove::<WebMercatorLeaf>()
+                .insert(TileSplitPls);
+        } else if tile_info.parent_tile.is_some()
+            && (tile_info.coord.z > tileserver.max_level
+                || (screen_coverage < SCREEN_COVERAGE_FOR_SPLIT / 4.0))
+        {
+            let parent = tile_info.parent_tile.unwrap();
+            if let Ok(parent_info) = get_tileinfo_q.get(parent) {
+                for child in parent_info.children_tiles.iter() {
+                    commands.entity(*child).remove::<WebMercatorLeaf>();
+                }
+                commands.entity(parent).insert(TileMergePls);
+            } else {
+                warn!("want to merge {:?} {:?} but parent {:?} does not have tile!", leaf_ent,  tile_info.coord, parent);
+                panic!("bagpl");
+            }
+        }
+        if iter_count >= 128 {
+            break;
+        }
+    }
+}
+
+#[derive(Debug, Component, Reflect)]
+struct TileSplitPls;
+#[derive(Debug, Component, Reflect)]
+struct TileMergePls;
+
+fn split_tiles_pls(
+    leaf_q: Query<(Entity, &WebMercatorTile), With<TileSplitPls>>,
+    mut commands: Commands,
+) {
+    for (leaf_ent, tile_info) in leaf_q.iter().take(64) {
+        if !tile_info.children_tiles.is_empty() {
+            warn!(
+                "got TileSplitPlz on thing that already has children: {:?}.",
+                leaf_ent
+            );
+            commands.entity(leaf_ent).remove::<TileSplitPls>();
+            continue;
+        }
+        let mut new_leaf_tile = tile_info.clone();
+
+        for child_tile in tile_info.coord.children() {
+            let child_id = commands
+                .spawn(SpawnTilePls {
                     webtile: WebMercatorTile {
                         coord: child_tile,
-                        parent_planet: leaf_tile.parent_planet,
-                        parent_tile: leaf_tile.parent_tile,
+                        parent_planet: tile_info.parent_planet,
+                        parent_tile: Some(leaf_ent),
                         children_tiles: [].into(),
                         cartesian_diagonal: 0.0,
                     },
-                }).id();
-                new_leaf_tile.children_tiles.push(child_id);
-            }
-            commands.entity(leaf_ent).insert(new_leaf_tile);
+                })
+                .id();
+            new_leaf_tile.children_tiles.push(child_id);
         }
+        commands
+            .entity(leaf_ent)
+            .remove::<(WebMercatorLeaf, TileSplitPls)>()
+            .insert(new_leaf_tile);
+    }
+}
+
+fn merge_tiles_pls(
+    q: Query<(Entity, &WebMercatorTile), With<TileMergePls>>,
+    tileinfo_q: Query<&WebMercatorTile>,
+    tilestarted_q: Query<&DownloadStarted>,
+    mut commands: Commands,
+) {
+    let mut to_check = vec![];
+    for (ent, tile_info) in q.iter().take(64) {
+        if tile_info.children_tiles.is_empty() {
+            warn!("empty children list for tile witih MergePls set: {:?}", ent);
+            commands.entity(ent).remove::<TileMergePls>();
+            continue;
+        }
+        for child_ent in tile_info.children_tiles.iter() {
+            to_check.push(*child_ent);
+        }
+        let mut new_info = tile_info.clone();
+        new_info.children_tiles.clear();
+        commands
+            .entity(ent)
+            .remove::<TileMergePls>()
+            .insert(WebMercatorLeaf {
+                last_check: get_current_timestamp()+ rand_float(),
+            })
+            .insert(new_info);
+    }
+
+    let mut to_despawn = HashSet::new();
+    while !to_check.is_empty() {
+        let current = to_check.pop().unwrap();
+        if let Ok(info) = tileinfo_q.get(current) {
+            to_despawn.insert(current);
+            for next in info.children_tiles.iter() {
+                to_check.push(*next);
+            }
+        }
+    }
+    for t in to_despawn {
+        if let Ok(started) = tilestarted_q.get(t) {
+            started.0.abort();
+        }
+        commands.entity(t).despawn_recursive();
     }
 }

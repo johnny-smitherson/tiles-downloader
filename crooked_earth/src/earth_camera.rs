@@ -2,8 +2,8 @@
 
 use crate::geo_trig;
 use crate::input_events::CameraMoveEvent;
-use bevy::prelude::*;
 use bevy::math::DVec3;
+use bevy::prelude::*;
 use big_space::reference_frame::RootReferenceFrame;
 use big_space::GridCell;
 
@@ -11,7 +11,8 @@ pub struct EarthCameraPlugin {}
 
 impl Plugin for EarthCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, read_camera_input_events);
+        app.register_type::<EarthCamera>()
+            .add_systems(Update, read_camera_input_events);
     }
 }
 
@@ -24,9 +25,6 @@ pub struct EarthCamera {
     min_camera_alt: f64,
 }
 
-#[derive(Debug, Component, Reflect, Default)]
-pub struct Sun;
-
 const MAX_CAMERA_Y_DEG: f64 = 84.0;
 
 impl EarthCamera {
@@ -34,7 +32,8 @@ impl EarthCamera {
         let xyz = geo_trig::gps_to_cartesian(self.geo_x_deg, self.geo_y_deg)
             .normalize()
             * (self.min_camera_alt + self.geo_alt);
-        let tr = Transform::from_translation(xyz.as_vec3()).looking_at(Vec3::ZERO, Vec3::Y);
+        let tr = Transform::from_translation(xyz.as_vec3())
+            .looking_at(Vec3::ZERO, Vec3::Y);
         (tr, xyz)
     }
 

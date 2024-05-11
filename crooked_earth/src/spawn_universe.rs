@@ -21,7 +21,17 @@ pub struct SpawnUniversePlugin {}
 
 impl Plugin for SpawnUniversePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_universe)
+        app
+        .register_type::<TheUniverse>()
+        .register_type::<TheCamera>()
+        .register_type::<TheSun>()
+        .register_type::<TheSunMesh>()
+        .register_type::<SomeStar>()
+        .register_type::<ThePlanet>()
+        .register_type::<TheMoon>()
+        .register_type::<TheBall>()
+        .register_type::<Rotates>()
+        .add_systems(Startup, spawn_universe)
             .add_systems(Startup, spawn_camera)
             .add_systems(Update, spawn_stars)
             .add_systems(Update, rotate)

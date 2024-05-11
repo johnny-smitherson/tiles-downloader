@@ -88,14 +88,19 @@ fn ignore_all_non_grid_from_floating_origin(
         Entity,
         Option<&big_space::IgnoreFloatingOrigin>,
         Option<&big_space::GridCell<i64>>,
+        Option<&Name>,
     )>,
+    frames: Res<bevy::core::FrameCount>,
 ) {
-    for (node_ent, node_ignored, node_gridcell) in q.iter() {
+    if frames.0 > 10 {
+        return;
+    }
+    for (node_ent, node_ignored, node_gridcell, node_name) in q.iter() {
         if node_ignored.is_none() && node_gridcell.is_none() {
             commands
                 .entity(node_ent)
                 .insert(big_space::IgnoreFloatingOrigin);
-            info!("adding ignore to thing without gridCell #{:?}", node_ent);
+            info!("adding ignore to thing without gridCell #{:?} {:?}", node_ent, node_name);
         }
     }
 }
