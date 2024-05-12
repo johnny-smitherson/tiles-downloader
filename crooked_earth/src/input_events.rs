@@ -10,7 +10,7 @@ impl Plugin for InputEventsPlugin {
             Update,
             (
                 mouse_wheel_input_system,
-                keyboard_input_system,
+                keyboard_continuous_input_system,
                 mouse_button_drag_moves_camera,
             )
                 .run_if(allow_input_events),
@@ -62,9 +62,8 @@ const MOUSE_SCROLL_INPUT_VALUE: f64 = 25.0;
 fn mouse_wheel_input_system(
     mut scroll_evr: EventReader<MouseWheel>,
     mut events: EventWriter<CameraMoveEvent>,
-    time: Res<Time>,
 ) {
-    let dt_cap = time.delta_seconds_f64().min(1.0 / 30.0);
+    let dt_cap = 1.0/60.0;
     let mouse_val = dt_cap * MOUSE_SCROLL_INPUT_VALUE;
     use bevy::input::mouse::MouseScrollUnit;
     for ev in scroll_evr.read() {
@@ -91,9 +90,8 @@ fn mouse_button_drag_moves_camera(
     mut motion_evr: EventReader<MouseMotion>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut events: EventWriter<CameraMoveEvent>,
-    time: Res<Time>,
 ) {
-    let dt_cap = time.delta_seconds_f64().min(1.0 / 30.0);
+    let dt_cap = 1.0/60.0;
     let drag_val = dt_cap * MOUSE_DRAG_INPUT_VALUE;
     if buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Left)
     {
@@ -112,7 +110,7 @@ fn mouse_button_drag_moves_camera(
 
 const KEYBOARD_INPUT_VALUE: f64 = 1.5;
 
-fn keyboard_input_system(
+fn keyboard_continuous_input_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut events: EventWriter<CameraMoveEvent>,
     time: Res<Time>,

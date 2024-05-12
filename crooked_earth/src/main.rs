@@ -10,7 +10,7 @@ fn main() {
                     title: "Crooked Earth.".into(),
                     name: Some("Crooked.Earth".into()),
                     resolution: (1920., 1080.).into(),
-                    present_mode: bevy::window::PresentMode::AutoVsync,
+                    present_mode: bevy::window::PresentMode::AutoNoVsync,
                     // Tells wasm not to override default event handling, like F5, Ctrl+R etc.
                     prevent_default_event_handling: false,
                     window_theme: Some(bevy::window::WindowTheme::Dark),
@@ -100,7 +100,10 @@ fn ignore_all_non_grid_from_floating_origin(
             commands
                 .entity(node_ent)
                 .insert(big_space::IgnoreFloatingOrigin);
-            info!("adding ignore to thing without gridCell #{:?} {:?}", node_ent, node_name);
+            info!(
+                "adding ignore to thing without gridCell #{:?} {:?}",
+                node_ent, node_name
+            );
         }
     }
 }

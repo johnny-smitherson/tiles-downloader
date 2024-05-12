@@ -42,17 +42,26 @@ impl Plugin for EarthFetchPlugin {
                     bevy::transform::TransformSystem::TransformPropagate,
                 ),
             )
-            .add_systems(PreUpdate, (spawn_tile_pls, split_tiles_pls, merge_tiles_pls));
+            .add_systems(
+                PreUpdate,
+                (spawn_tile_pls, split_tiles_pls, merge_tiles_pls),
+            );
     }
 }
 
-#[derive(Debug, Component, Default, Reflect)]
-pub struct DownloadPending;
+#[derive(Debug, Component, Default, Reflect, Clone, Copy)]
+pub struct DownloadPending {
+    fail_cnt: i32,
+    try_after: f64,
+}
 
 #[derive(Debug, Component, Reflect)]
 // #[reflect(no_field_bounds)]
 #[reflect(from_reflect = false)]
-pub struct DownloadStarted(#[reflect(ignore)] tokio::task::JoinHandle<()>);
+pub struct DownloadStarted{
+    #[reflect(ignore)] tokio_handle: tokio::task::JoinHandle<()>,
+    pending: DownloadPending,
+}
 
 #[derive(Debug, Component, Default, Reflect)]
 pub struct DownloadFinished;
@@ -99,45 +108,23 @@ pub struct WebMercatorLeaf {
 
 #[derive(Debug)]
 pub struct TileFetchResultData {
-    image: Image,
+    image: Option<Image>,
     target: Entity,
     tile: TileCoord,
     planet_info: WebMercatorTiledPlanet,
+    pending_info: DownloadPending,
 }
 
-async fn fetch_url_to_bytes(url: &str) -> bytes::Bytes {
-    let img = {
-        let mut current_wait = 1.0;
-        let mut print_count: i32 = 0;
-        loop {
-            let resp = reqwest::get(url).await;
-            if let Ok(resp) = resp {
-                if resp.status() == StatusCode::OK {
-                    if let Ok(bytes) = resp.bytes().await {
-                        break bytes;
-                    }
-                }
-            }
-            tokio::time::sleep(std::time::Duration::from_secs_f64(
-                current_wait,
-            ))
-            .await;
-            current_wait *= 1.1;
-            current_wait += 0.1;
-            if current_wait > 20.0 {
-                current_wait = 20.0;
-                if print_count % 4 == 0 {
-                    warn!(
-                        "file still not downloaded while at max wait: {:?}",
-                        &url
-                    );
-                }
-                print_count += 1;
+async fn fetch_url_to_bytes(url: &str) -> Option<bytes::Bytes> {
+    let resp = reqwest::get(url).await;
+    if let Ok(resp) = resp {
+        if resp.status() == StatusCode::OK {
+            if let Ok(bytes) = resp.bytes().await {
+                return Some(bytes);
             }
         }
-    };
-    // info!("downlaoded {:?}: {} bytes", &tile, img.len());
-    img
+    }
+    None
 }
 
 pub fn parse_bytes_to_image(
@@ -161,17 +148,21 @@ async fn fetch_tile_data(
     target: Entity,
     planet_info: WebMercatorTiledPlanet,
     server: config_tileserver::TileServerConfig,
+    pending_info: DownloadPending,
 ) -> TileFetchResultData {
-    let img = parse_bytes_to_image(
-        fetch_url_to_bytes(&server.get_tile_url(tile)).await,
-        server.img_type(),
-    );
+    let img = if let Some(img_bytes) = fetch_url_to_bytes(&server.get_tile_url(tile)).await {
+        Some(parse_bytes_to_image(
+            img_bytes,
+            server.img_type(),
+        ))
+    } else {None};
 
     TileFetchResultData {
         image: img,
         target,
         tile,
         planet_info,
+        pending_info,
     }
 }
 
@@ -221,17 +212,18 @@ fn spawn_tile_pls(
 
     for (target_ent, req) in q.into_iter().take(128) {
         total_tiles += 1;
-        let planet_info = planetinfo_q.get(req.webtile.parent_planet).expect("planet not found");
+        let planet_info = planetinfo_q
+            .get(req.webtile.parent_planet)
+            .expect("planet not found");
         let tile = req.webtile.coord;
-        let triangle_group =
-            tile.geo_bbox().to_tris(planet_info.planet_radius);
+        let triangle_group = tile.geo_bbox().to_tris(planet_info.planet_radius);
         let mesh = triangle_group.generate_mesh();
         let tile_diagonal = triangle_group.diagonal();
         let mesh_handle = meshes.add(mesh);
         let tile_center = triangle_group.center();
-        let downwards_level =
-            tileservers.get(&planet_info.tile_type).max_level as f64
-                - tile.z as f64;
+        let downwards_level = tileservers.get(&planet_info.tile_type).max_level
+            as f64
+            - tile.z as f64;
         let tile_center =
             tile_center - tile_center.normalize() * downwards_level;
 
@@ -254,8 +246,10 @@ fn spawn_tile_pls(
                 children_tiles: req.webtile.children_tiles.clone(),
                 cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
             },
-            WebMercatorLeaf { last_check: get_current_timestamp() + rand_float() },
-            DownloadPending,
+            WebMercatorLeaf {
+                last_check: get_current_timestamp() - 2.0 * rand_float(),
+            },
+            DownloadPending::default(),
         );
         commands
             .entity(target_ent)
@@ -326,14 +320,14 @@ fn set_tiles_pending_when_planet_changes(
                 commands
                     .entity(*child)
                     .remove::<(DownloadStarted, DownloadFinished)>()
-                    .insert(DownloadPending);
+                    .insert(DownloadPending::default());
                 current_count += 1;
             } else if let Ok(started) = started_q.get(*child) {
-                started.0.abort();
+                started.tokio_handle.abort();
                 commands
                     .entity(*child)
                     .remove::<(DownloadStarted, DownloadFinished)>()
-                    .insert(DownloadPending);
+                    .insert(DownloadPending::default());
                 current_count += 1;
                 aborted_count += 1;
             }
@@ -347,9 +341,10 @@ fn set_tiles_pending_when_planet_changes(
 
 fn start_planet_tile_download(
     pending_tiles: Query<
-        (Entity, &WebMercatorTile, &Parent),
+        (Entity, &WebMercatorTile, &Parent, &DownloadPending),
         With<DownloadPending>,
     >,
+    running_tiles: Query<Entity, (With<WebMercatorTile>, With<DownloadStarted>)>,
     planet_q: Query<&WebMercatorTiledPlanet>,
     tileservers: Res<TileServers>,
     sender: Res<TileFetchSender>,
@@ -361,11 +356,19 @@ fn start_planet_tile_download(
     if pending_tiles.is_empty() {
         return;
     }
+    let running_count = running_tiles.iter().count() as i32;
+    let max_iter = 100 - running_count;
+    if max_iter <= 0 {
+        return;
+    }
 
     let dispatch_count: usize = 16;
     let (task_tx, task_rx) = crossbeam_channel::bounded(dispatch_count);
 
-    for (target, tile, parent) in pending_tiles.iter().take(dispatch_count) {
+    for (target, tile, parent, pending_info) in pending_tiles.iter().take(dispatch_count) {
+        if t0 < pending_info.try_after {
+            continue;
+        }        
         let planet_info = planet_q.get(parent.get()).expect("parent is planet");
         current_iter += 1;
 
@@ -374,33 +377,36 @@ fn start_planet_tile_download(
         let server_config = tileservers.get(&planet_info.tile_type);
         let tile = tile.coord.clone();
         let task_tx = task_tx.clone();
+        let pending_info2 = pending_info.clone();
 
         runtime.spawn_background_task(move |mut _ctx| async move {
             let tokio_handle = tokio::task::spawn(async move {
                 let data =
-                    fetch_tile_data(tile, target, planet_info, server_config)
+                    fetch_tile_data(tile, target, planet_info, server_config, pending_info2)
                         .await;
 
                 let _ = sender.send(Arc::new(data));
             });
             let _ = task_tx.send((target, tokio_handle));
         });
-        if get_current_timestamp() - t0 > 0.001 {
-            break;
-        }
-    }
-    for (target, task_h) in task_rx.into_iter().take(current_iter) {
+        let (target, task_h) = task_rx.recv().expect("queue kaput");
         commands
             .entity(target)
             .remove::<DownloadPending>()
             .remove::<DownloadFinished>()
-            .insert(DownloadStarted(task_h));
+            .insert(DownloadStarted{tokio_handle: task_h, pending: *pending_info});
+        if get_current_timestamp() - t0 > 0.001 {
+            break;
+        }
+        if current_iter > max_iter {
+            break;
+        }
     }
 
     if current_iter > 0 {
         let dt_ms = (crate::util::get_current_timestamp() - t0) * 1000.0;
         let dt_ms = ((dt_ms * 1000.0) as i64) as f64 / 1000.0;
-        if dt_ms > 1.0 {
+        if dt_ms > 1.5 {
             info!("started download {} tiles in {} ms", current_iter, dt_ms);
         }
     }
@@ -456,8 +462,18 @@ fn insert_downloaded_planet_tiles(
             continue;
         }
 
+        if message.image.is_none() {
+            // curl failed => set new settings for pending
+            let fail_cnt = message.pending_info.fail_cnt;
+            commands.entity(message.target).remove::<DownloadStarted>().insert(DownloadPending {
+                fail_cnt: fail_cnt + 1,
+                try_after: get_current_timestamp() + 0.1 + rand_float() + 2.0f64.powi(fail_cnt)
+            });
+            continue;
+        }
+
         current_iter += 1;
-        let img_handle = images.add(message.image);
+        let img_handle = images.add(message.image.unwrap());
         let mat_handle = materials.add(StandardMaterial {
             base_color_texture: Some(img_handle),
             perceptual_roughness: 1.0,
@@ -505,9 +521,9 @@ fn check_merge_or_split(
         }
         iter_count += 1;
 
-        commands
-            .entity(leaf_ent)
-            .insert(WebMercatorLeaf { last_check: now + rand_float()});
+        commands.entity(leaf_ent).insert(WebMercatorLeaf {
+            last_check: now + 0.1 * rand_float(),
+        });
         let leaf_pos = leaf_transform.translation();
         let dist_leaf_to_cam = (leaf_pos - camera_pos).length();
         let screen_coverage =
@@ -567,15 +583,19 @@ fn split_tiles_pls(
 
         for child_tile in tile_info.coord.children() {
             let child_id = commands
-                .spawn(SpawnTilePls {
-                    webtile: WebMercatorTile {
-                        coord: child_tile,
-                        parent_planet: tile_info.parent_planet,
-                        parent_tile: Some(leaf_ent),
-                        children_tiles: [].into(),
-                        cartesian_diagonal: 0.0,
+                .spawn((
+                    big_space::FloatingSpatialBundle::<i64>::default(),
+                    // Name:new(format!("spawn tile plz {:?}", child_tile)),
+                    SpawnTilePls {
+                        webtile: WebMercatorTile {
+                            coord: child_tile,
+                            parent_planet: tile_info.parent_planet,
+                            parent_tile: Some(leaf_ent),
+                            children_tiles: [].into(),
+                            cartesian_diagonal: 0.0,
+                        },
                     },
-                })
+                ))
                 .id();
             new_leaf_tile.children_tiles.push(child_id);
         }
@@ -608,7 +628,7 @@ fn merge_tiles_pls(
             .entity(ent)
             .remove::<TileMergePls>()
             .insert(WebMercatorLeaf {
-                last_check: get_current_timestamp()+ rand_float(),
+                last_check: get_current_timestamp() + 0.1 * rand_float(),
             })
             .insert(new_info);
     }
@@ -625,7 +645,7 @@ fn merge_tiles_pls(
     }
     for t in to_despawn {
         if let Ok(started) = tilestarted_q.get(t) {
-            started.0.abort();
+            started.tokio_handle.abort();
         }
         commands.entity(t).despawn_recursive();
     }

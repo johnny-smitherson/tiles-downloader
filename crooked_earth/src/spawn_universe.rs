@@ -21,17 +21,16 @@ pub struct SpawnUniversePlugin {}
 
 impl Plugin for SpawnUniversePlugin {
     fn build(&self, app: &mut App) {
-        app
-        .register_type::<TheUniverse>()
-        .register_type::<TheCamera>()
-        .register_type::<TheSun>()
-        .register_type::<TheSunMesh>()
-        .register_type::<SomeStar>()
-        .register_type::<ThePlanet>()
-        .register_type::<TheMoon>()
-        .register_type::<TheBall>()
-        .register_type::<Rotates>()
-        .add_systems(Startup, spawn_universe)
+        app.register_type::<TheUniverse>()
+            .register_type::<TheCamera>()
+            .register_type::<TheSun>()
+            .register_type::<TheSunMesh>()
+            .register_type::<SomeStar>()
+            .register_type::<ThePlanet>()
+            .register_type::<TheMoon>()
+            .register_type::<TheBall>()
+            .register_type::<Rotates>()
+            .add_systems(Startup, spawn_universe)
             .add_systems(Startup, spawn_camera)
             .add_systems(Update, spawn_stars)
             .add_systems(Update, rotate)
@@ -83,7 +82,7 @@ fn rotate(
     mut last_reversed: Local<f64>,
 ) {
     let min_speed = 1.0;
-    let max_speed = 120.0;
+    let max_speed = 1200.0;
     let exp_speedup = 1.5;
 
     *current_speed = (*current_speed).min(max_speed).max(min_speed);
@@ -107,7 +106,7 @@ fn rotate(
     *current_speed = (*current_speed).min(max_speed).max(min_speed);
     let reversed = if *reversed { -1.0 } else { 1.0 };
     for (mut transform, rotates) in rotate_query.iter_mut() {
-        transform.rotate_local_y(rotates.0 * *current_speed * reversed);
+        transform.rotate_local_y(rotates.0 * *current_speed * reversed * 0.1);
     }
 }
 
