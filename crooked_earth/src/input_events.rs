@@ -63,7 +63,7 @@ fn mouse_wheel_input_system(
     mut scroll_evr: EventReader<MouseWheel>,
     mut events: EventWriter<CameraMoveEvent>,
 ) {
-    let dt_cap = 1.0/60.0;
+    let dt_cap = 1.0 / 60.0;
     let mouse_val = dt_cap * MOUSE_SCROLL_INPUT_VALUE;
     use bevy::input::mouse::MouseScrollUnit;
     for ev in scroll_evr.read() {
@@ -91,7 +91,7 @@ fn mouse_button_drag_moves_camera(
     buttons: Res<ButtonInput<MouseButton>>,
     mut events: EventWriter<CameraMoveEvent>,
 ) {
-    let dt_cap = 1.0/60.0;
+    let dt_cap = 1.0 / 60.0;
     let drag_val = dt_cap * MOUSE_DRAG_INPUT_VALUE;
     if buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Left)
     {

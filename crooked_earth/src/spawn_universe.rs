@@ -43,31 +43,31 @@ impl Plugin for SpawnUniversePlugin {
 }
 
 #[derive(Component, Debug, Reflect)]
-struct TheUniverse;
+pub struct TheUniverse;
 
 #[derive(Component, Debug, Reflect)]
-struct TheCamera;
+pub struct TheCamera;
 
 #[derive(Component, Debug, Reflect)]
-struct TheSun;
+pub struct TheSun;
 
 #[derive(Component, Debug, Reflect)]
-struct TheSunMesh;
+pub struct TheSunMesh;
 
 #[derive(Component, Debug, Reflect)]
-struct SomeStar;
+pub struct SomeStar;
 
 #[derive(Component, Debug, Reflect)]
-struct ThePlanet;
+pub struct ThePlanet;
 
 #[derive(Component, Debug, Reflect)]
-struct TheMoon;
+pub struct TheMoon;
 
 #[derive(Component, Debug, Reflect)]
-struct TheBall;
+pub struct TheBall;
 
 #[derive(Component, Debug, Reflect)]
-struct Rotates(f32);
+pub struct Rotates(f32);
 
 fn rotate(
     mut rotate_query: Query<(&mut Transform, &Rotates)>,

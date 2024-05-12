@@ -3,11 +3,11 @@ use crate::config_tileserver::{self, TileServers};
 use crate::geo_trig;
 use crate::geo_trig::TileCoord;
 use crate::util::get_current_timestamp;
+use crate::spawn_universe::TheCamera;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::utils::hashbrown::HashSet;
 use big_space::reference_frame::RootReferenceFrame;
-use big_space::FloatingOrigin;
 use rand::{thread_rng, Rng};
 use reqwest::StatusCode;
 use std::sync::Arc;
@@ -58,8 +58,9 @@ pub struct DownloadPending {
 #[derive(Debug, Component, Reflect)]
 // #[reflect(no_field_bounds)]
 #[reflect(from_reflect = false)]
-pub struct DownloadStarted{
-    #[reflect(ignore)] tokio_handle: tokio::task::JoinHandle<()>,
+pub struct DownloadStarted {
+    #[reflect(ignore)]
+    tokio_handle: tokio::task::JoinHandle<()>,
     pending: DownloadPending,
 }
 
@@ -103,7 +104,7 @@ pub struct WebMercatorTile {
 
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct WebMercatorLeaf {
-    last_check: f64,
+    next_check_at: f64,
 }
 
 #[derive(Debug)]
@@ -150,12 +151,13 @@ async fn fetch_tile_data(
     server: config_tileserver::TileServerConfig,
     pending_info: DownloadPending,
 ) -> TileFetchResultData {
-    let img = if let Some(img_bytes) = fetch_url_to_bytes(&server.get_tile_url(tile)).await {
-        Some(parse_bytes_to_image(
-            img_bytes,
-            server.img_type(),
-        ))
-    } else {None};
+    let img = if let Some(img_bytes) =
+        fetch_url_to_bytes(&server.get_tile_url(tile)).await
+    {
+        Some(parse_bytes_to_image(img_bytes, server.img_type()))
+    } else {
+        None
+    };
 
     TileFetchResultData {
         image: img,
@@ -247,7 +249,7 @@ fn spawn_tile_pls(
                 cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
             },
             WebMercatorLeaf {
-                last_check: get_current_timestamp() - 2.0 * rand_float(),
+                next_check_at: get_current_timestamp() - 2.0 * rand_float(),
             },
             DownloadPending::default(),
         );
@@ -344,7 +346,10 @@ fn start_planet_tile_download(
         (Entity, &WebMercatorTile, &Parent, &DownloadPending),
         With<DownloadPending>,
     >,
-    running_tiles: Query<Entity, (With<WebMercatorTile>, With<DownloadStarted>)>,
+    running_tiles: Query<
+        Entity,
+        (With<WebMercatorTile>, With<DownloadStarted>),
+    >,
     planet_q: Query<&WebMercatorTiledPlanet>,
     tileservers: Res<TileServers>,
     sender: Res<TileFetchSender>,
@@ -365,10 +370,12 @@ fn start_planet_tile_download(
     let dispatch_count: usize = 16;
     let (task_tx, task_rx) = crossbeam_channel::bounded(dispatch_count);
 
-    for (target, tile, parent, pending_info) in pending_tiles.iter().take(dispatch_count) {
+    for (target, tile, parent, pending_info) in
+        pending_tiles.iter().take(dispatch_count)
+    {
         if t0 < pending_info.try_after {
             continue;
-        }        
+        }
         let planet_info = planet_q.get(parent.get()).expect("parent is planet");
         current_iter += 1;
 
@@ -381,9 +388,14 @@ fn start_planet_tile_download(
 
         runtime.spawn_background_task(move |mut _ctx| async move {
             let tokio_handle = tokio::task::spawn(async move {
-                let data =
-                    fetch_tile_data(tile, target, planet_info, server_config, pending_info2)
-                        .await;
+                let data = fetch_tile_data(
+                    tile,
+                    target,
+                    planet_info,
+                    server_config,
+                    pending_info2,
+                )
+                .await;
 
                 let _ = sender.send(Arc::new(data));
             });
@@ -394,7 +406,10 @@ fn start_planet_tile_download(
             .entity(target)
             .remove::<DownloadPending>()
             .remove::<DownloadFinished>()
-            .insert(DownloadStarted{tokio_handle: task_h, pending: *pending_info});
+            .insert(DownloadStarted {
+                tokio_handle: task_h,
+                pending: *pending_info,
+            });
         if get_current_timestamp() - t0 > 0.001 {
             break;
         }
@@ -465,10 +480,16 @@ fn insert_downloaded_planet_tiles(
         if message.image.is_none() {
             // curl failed => set new settings for pending
             let fail_cnt = message.pending_info.fail_cnt;
-            commands.entity(message.target).remove::<DownloadStarted>().insert(DownloadPending {
-                fail_cnt: fail_cnt + 1,
-                try_after: get_current_timestamp() + 0.1 + rand_float() + 2.0f64.powi(fail_cnt)
-            });
+            commands
+                .entity(message.target)
+                .remove::<DownloadStarted>()
+                .insert(DownloadPending {
+                    fail_cnt: fail_cnt + 1,
+                    try_after: get_current_timestamp()
+                        + 0.1
+                        + rand_float()
+                        + 2.0f64.powi(fail_cnt),
+                });
             continue;
         }
 
@@ -497,66 +518,101 @@ fn insert_downloaded_planet_tiles(
 }
 
 fn check_merge_or_split(
+    transform_q: Query<&GlobalTransform>,
     leaf_q: Query<
-        (Entity, &GlobalTransform, &WebMercatorTile, &WebMercatorLeaf),
-        With<WebMercatorLeaf>,
+        (Entity, &WebMercatorLeaf),
     >,
-    camera_q: Query<
-        &GlobalTransform,
-        (With<FloatingOrigin>, Without<WebMercatorLeaf>),
-    >,
+    camera_q: Query<(Entity, &TheCamera)>,
     planetinfo_q: Query<&WebMercatorTiledPlanet>,
+    tileinfo_q: Query<&WebMercatorTile>,
     tileservers: Res<TileServers>,
     get_tileinfo_q: Query<&WebMercatorTile>,
     mut commands: Commands,
 ) {
-    let camera_pos = camera_q.single().translation();
-    let now = get_current_timestamp();
-    const CHECK_INTERVAL_S: f64 = 1.0;
-    let mut iter_count = 0;
-    const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.3;
-    for (leaf_ent, leaf_transform, tile_info, leaf_marker) in leaf_q.iter() {
-        if now - leaf_marker.last_check < CHECK_INTERVAL_S {
-            continue;
-        }
-        iter_count += 1;
+    use std::collections::HashMap;
+    let mut _transform_hash = HashMap::<Entity, Vec3>::new();
+    let mut get_global_transform = |ent| {
+        if !_transform_hash.contains_key(&ent) {
+            _transform_hash.insert(ent, transform_q.get(ent).unwrap().translation());
+        } 
+        _transform_hash.get(&ent).unwrap().clone()
+    };
 
-        commands.entity(leaf_ent).insert(WebMercatorLeaf {
-            last_check: now + 0.1 * rand_float(),
-        });
-        let leaf_pos = leaf_transform.translation();
+    let camera_pos = get_global_transform(camera_q.single().0);
+    let mut decide_split_or_merge = |tile_ent| {
+        let leaf_pos = get_global_transform(tile_ent);
         let dist_leaf_to_cam = (leaf_pos - camera_pos).length();
+        let tile_info = tileinfo_q.get(tile_ent).unwrap();
         let screen_coverage =
             tile_info.cartesian_diagonal as f32 / dist_leaf_to_cam;
         let planet_info = planetinfo_q
             .get(tile_info.parent_planet)
-            .expect("parent of leaf is not planet");
+            .unwrap();
+        let planet_pos = get_global_transform(tile_info.parent_planet);
+        
+        let screen_ang_cos = (camera_pos - planet_pos).normalize().dot((leaf_pos - planet_pos).normalize());
+        let screen_coverage = screen_coverage * screen_ang_cos;
         let tileserver = tileservers.get(&planet_info.tile_type);
+        let should_split = screen_coverage > SCREEN_COVERAGE_FOR_SPLIT
+        && tile_info.coord.z < tileserver.max_level;
+        let should_merge = tile_info.parent_tile.is_some()
+        && (tile_info.coord.z > tileserver.max_level
+            || (screen_coverage < SCREEN_COVERAGE_FOR_SPLIT / 4.0));
+        
+        (should_split, should_merge, tile_info.parent_tile)
+    };
 
-        if screen_coverage > SCREEN_COVERAGE_FOR_SPLIT
-            && tile_info.coord.z < tileserver.max_level
+    let now = get_current_timestamp();
+    const CHECK_INTERVAL_S: f64 = 1.0;
+    let mut iter_count = 0;
+    const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.3;
+
+    let mut merge_set = HashSet::<Entity>::new();
+    for (leaf_ent, leaf_marker) in leaf_q.iter() {
+        if now < leaf_marker.next_check_at {
+            continue;
+        }
+        if iter_count >= 128 {
+            break;
+        }
+        iter_count += 1;
+        commands.entity(leaf_ent).insert(WebMercatorLeaf {
+            next_check_at: now + 0.1 * rand_float() + CHECK_INTERVAL_S,
+        });
+        let (should_split, should_merge, maybe_parent) = decide_split_or_merge(leaf_ent);
+
+        if should_split
         {
             commands
                 .entity(leaf_ent)
                 .remove::<WebMercatorLeaf>()
                 .insert(TileSplitPls);
-        } else if tile_info.parent_tile.is_some()
-            && (tile_info.coord.z > tileserver.max_level
-                || (screen_coverage < SCREEN_COVERAGE_FOR_SPLIT / 4.0))
+        } else if should_merge
         {
-            let parent = tile_info.parent_tile.unwrap();
-            if let Ok(parent_info) = get_tileinfo_q.get(parent) {
-                for child in parent_info.children_tiles.iter() {
-                    commands.entity(*child).remove::<WebMercatorLeaf>();
-                }
-                commands.entity(parent).insert(TileMergePls);
-            } else {
-                warn!("want to merge {:?} {:?} but parent {:?} does not have tile!", leaf_ent,  tile_info.coord, parent);
-                panic!("bagpl");
-            }
+            let parent = maybe_parent.unwrap();
+            merge_set.insert(parent);
         }
-        if iter_count >= 128 {
-            break;
+    }
+    for parent in merge_set.into_iter() {
+        if let Ok(parent_info) = get_tileinfo_q.get(parent) {
+            let mut all_children_are_leafs = true;
+            for child in parent_info.children_tiles.iter() {
+                if leaf_q.get(*child).is_err() {
+                    all_children_are_leafs = false;
+                    break;
+                }
+            }
+            if !all_children_are_leafs {
+                continue;
+            }
+            let (_parent_split, _, _) = decide_split_or_merge(parent);
+            if _parent_split {
+                continue;
+            }
+            for child in parent_info.children_tiles.iter() {
+                commands.entity(*child).remove::<WebMercatorLeaf>();
+            }
+            commands.entity(parent).insert(TileMergePls);
         }
     }
 }
@@ -628,7 +684,7 @@ fn merge_tiles_pls(
             .entity(ent)
             .remove::<TileMergePls>()
             .insert(WebMercatorLeaf {
-                last_check: get_current_timestamp() + 0.1 * rand_float(),
+                next_check_at: get_current_timestamp() + 0.016 * rand_float(),
             })
             .insert(new_info);
     }
@@ -649,4 +705,19 @@ fn merge_tiles_pls(
         }
         commands.entity(t).despawn_recursive();
     }
+}
+
+
+#[derive(Debug, Component, Reflect)]
+struct CheckPostSplit;
+#[derive(Debug, Component, Reflect)]
+struct CheckPostMerge;
+
+
+fn check_post_split() {
+
+}
+
+fn check_post_merge() {
+    
 }
