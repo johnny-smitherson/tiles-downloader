@@ -13,7 +13,8 @@ bevy_egui = {version="0.27.0"}
 bevy_framepace = "0.15.0"
 bevy_screen_diagnostics = "0.5.0"
 # bevy_trackball = {version="0.5.0", features=["bevy_egui"]}
-big_space = "0.6.0"
+# big_space = "0.6.0"
+big_space = {git = "https://github.com/aevyrie/big_space/", branch = "explicit-roots"}
 bytes = "1.6.0"
 crossbeam-channel = "0.5.12"
 # egui = "0.26.2"

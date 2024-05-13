@@ -4,7 +4,6 @@ use crate::geo_trig;
 use crate::input_events::CameraMoveEvent;
 use bevy::math::DVec3;
 use bevy::prelude::*;
-use big_space::reference_frame::RootReferenceFrame;
 use big_space::GridCell;
 
 pub struct EarthCameraPlugin {}
@@ -102,14 +101,15 @@ impl EarthCamera {
 
 fn read_camera_input_events(
     mut camera_events: EventReader<CameraMoveEvent>,
-    mut camera_q: Query<(&mut EarthCamera, &mut Transform, &mut GridCell<i64>)>,
-    space: Res<RootReferenceFrame<i64>>,
+    mut camera_q: Query<(&mut EarthCamera, &mut Transform, &mut GridCell<i64>, &Parent)>,
+    space_q: Query<&big_space::reference_frame::ReferenceFrame<i64>>,
 ) {
     let events: Vec<_> = camera_events.read().collect();
     if events.is_empty() {
         return;
     }
-    for (mut cam, mut transform, mut cell) in camera_q.iter_mut() {
+    for (mut cam, mut transform, mut cell, cam_p) in camera_q.iter_mut() {
+        let space = space_q.get(cam_p.get()).unwrap();
         // let old_transform = cam.get_abs_transform();
         for ev in events.iter() {
             cam.accept_event(ev);

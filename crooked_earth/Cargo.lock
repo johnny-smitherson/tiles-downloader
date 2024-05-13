@@ -1179,8 +1179,7 @@ dependencies = [
 [[package]]
 name = "big_space"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b2e70758692b61967d97145790c2ee3b016c35c4e0bb08b08a6b9b65f1a956f"
+source = "git+https://github.com/aevyrie/big_space/?branch=explicit-roots#672d34323da22dd570dc3ad0f427c996fbc966fb"
 dependencies = [
  "bevy",
 ]

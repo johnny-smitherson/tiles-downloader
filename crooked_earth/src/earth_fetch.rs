@@ -7,7 +7,6 @@ use crate::util::get_current_timestamp;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::utils::hashbrown::HashSet;
-use big_space::reference_frame::RootReferenceFrame;
 use rand::{thread_rng, Rng};
 use reqwest::StatusCode;
 use std::sync::Arc;
@@ -208,9 +207,9 @@ fn spawn_tile_pls(
     mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
     dbg_mat: Res<DebugMaterials>,
-    space: Res<RootReferenceFrame<i64>>,
     tileservers: Res<TileServers>,
     planetinfo_q: Query<&WebMercatorTiledPlanet>,
+    space_q: Query<&big_space::reference_frame::ReferenceFrame<i64>>,
     tileinfo_q: Query<&WebMercatorTile>,
 ) {
     // MACRO PLZ
@@ -245,6 +244,7 @@ fn spawn_tile_pls(
         let tile_center =
             tile_center - tile_center.normalize() * downwards_level;
 
+        let space = space_q.get(req.webtile.parent_planet).unwrap();
         let (tile_cell, tile_trans) = space.translation_to_grid(tile_center);
 
         let bundle = (
@@ -307,7 +307,6 @@ fn spawn_root_planet_tiles(
             geo_trig::TileCoord::get_root_tiles(planet_info.root_zoom_level)
         {
             commands.spawn((
-                big_space::FloatingSpatialBundle::<i64>::default(),
                 Name::new("root tile pls"),
                 SpawnTilePls {
                     webtile: WebMercatorTile {
@@ -673,7 +672,6 @@ fn split_tiles_pls(
         for child_tile in tile_info.coord.children() {
             let child_id = commands
                 .spawn((
-                    big_space::FloatingSpatialBundle::<i64>::default(),
                     Name::new("spawn more tiles plz"),
                     SpawnTilePls {
                         webtile: WebMercatorTile {

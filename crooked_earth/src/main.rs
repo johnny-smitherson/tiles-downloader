@@ -46,7 +46,7 @@ fn main() {
             .build()
             .disable::<TransformPlugin>(),))
         .add_plugins((
-            big_space::FloatingOriginPlugin::<i64>::default(),
+            big_space::BigSpacePlugin::<i64>::default(),
             // big_space::debug::FloatingOriginDebugPlugin::<i64>::default(),
             // big_space::camera::CameraControllerPlugin::<i64>::default(),
             // bevy_framepace::FramepacePlugin,
@@ -79,8 +79,6 @@ fn main() {
             brightness: 100.0,
         })
         .add_systems(Update, make_window_visible_after_3_frames)
-        .add_systems(Update, ignore_all_ui_nodes_from_floating_origin)
-        .add_systems(Update, ignore_all_non_grid_from_floating_origin)
         .run()
 }
 
@@ -91,45 +89,5 @@ fn make_window_visible_after_3_frames(
     if frames.0 == 3 {
         window.single_mut().visible = true;
         info!("make window visible.");
-    }
-}
-
-fn ignore_all_ui_nodes_from_floating_origin(
-    mut commands: Commands,
-    q: Query<(Entity, Option<&big_space::IgnoreFloatingOrigin>), With<Node>>,
-) {
-    for (node_ent, node_ignored) in q.iter() {
-        if node_ignored.is_none() {
-            commands
-                .entity(node_ent)
-                .insert(big_space::IgnoreFloatingOrigin);
-            info!("adding ignore to UI node #{:?}", node_ent);
-        }
-    }
-}
-
-fn ignore_all_non_grid_from_floating_origin(
-    mut commands: Commands,
-    q: Query<(
-        Entity,
-        Option<&big_space::IgnoreFloatingOrigin>,
-        Option<&big_space::GridCell<i64>>,
-        Option<&Name>,
-    )>,
-    frames: Res<bevy::core::FrameCount>,
-) {
-    if frames.0 > 10 {
-        return;
-    }
-    for (node_ent, node_ignored, node_gridcell, node_name) in q.iter() {
-        if node_ignored.is_none() && node_gridcell.is_none() {
-            commands
-                .entity(node_ent)
-                .insert(big_space::IgnoreFloatingOrigin);
-            info!(
-                "adding ignore to thing without gridCell #{:?} {:?}",
-                node_ent, node_name
-            );
-        }
     }
 }

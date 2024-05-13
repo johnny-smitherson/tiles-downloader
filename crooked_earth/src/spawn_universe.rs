@@ -1,13 +1,15 @@
+use std::default;
+
 use bevy::prelude::*;
 /// Example with spheres at the scale and distance of the earth and moon around the sun, at 1:1
 /// scale. The earth is rotating on its axis, and the camera is in this reference frame, to
 /// demonstrate how high precision nested reference frames work at large scales.
 use bevy::{core_pipeline::bloom::BloomSettings, render::camera::Exposure};
 
-use big_space::FloatingSpatialBundle;
 use big_space::{
     // camera::CameraController,
-    reference_frame::{ReferenceFrame, RootReferenceFrame},
+    reference_frame::ReferenceFrame,
+    bundles::{BigSpaceBundle, BigSpatialBundle, BigReferenceFrameBundle},
     FloatingOrigin,
     GridCell,
 };
@@ -31,7 +33,6 @@ impl Plugin for SpawnUniversePlugin {
             .register_type::<TheBall>()
             .register_type::<Rotates>()
             .add_systems(Startup, spawn_universe)
-            .add_systems(Startup, spawn_camera)
             .add_systems(Update, spawn_stars)
             .add_systems(Update, rotate)
             .add_systems(Update, spawn_sun)
@@ -112,15 +113,11 @@ fn rotate(
 
 fn spawn_universe(mut commands: Commands) {
     info!("spawn universe");
-    commands.spawn((
-        FloatingSpatialBundle::<i64>::default(),
+    let universe_id = commands.spawn((
+        BigSpaceBundle::<i64>::default(),
         TheUniverse,
         Name::new("The Universe"),
-        ReferenceFrame::<i64>::default(),
-    ));
-}
-
-fn spawn_camera(mut commands: Commands) {
+    )).id();
     info!("setup_camera");
     commands.spawn((
         Name::new("main 3D camera"),
@@ -142,7 +139,7 @@ fn spawn_camera(mut commands: Commands) {
         //     .with_smoothness(0.9, 0.8)
         //     .with_speed(1.0),
         TheCamera,
-    ));
+    )).set_parent(universe_id);
 }
 
 fn spawn_stars(
@@ -160,8 +157,7 @@ fn spawn_stars(
     let parent = commands
         .spawn((
             Name::new("Sky Stars"),
-            FloatingSpatialBundle::<i64>::default(),
-            ReferenceFrame::<i64>::default(),
+            BigReferenceFrameBundle::<i64>::default(),
         ))
         .set_parent(parent)
         .id();
@@ -250,11 +246,10 @@ fn spawn_sun(
 }
 
 fn spawn_planet(
-    parent: Query<Entity, Added<TheUniverse>>,
+    parent: Query<(Entity, &ReferenceFrame<i64>), Added<TheUniverse>>,
     mut commands: Commands,
-    space: Res<RootReferenceFrame<i64>>,
 ) {
-    let parent = if parent.get_single().is_ok() {
+    let (parent, space) = if parent.get_single().is_ok() {
         parent.single()
     } else {
         return;
@@ -275,13 +270,12 @@ fn spawn_planet(
             //     ..default()
             // },
             Name::new("The Planet"),
-            FloatingSpatialBundle {
-                grid_position: earth_cell,
+            BigReferenceFrameBundle {
+                cell: earth_cell,
                 transform: Transform::from_translation(earth_pos)
                     .with_rotation(Quat::from_rotation_y(15f32.to_radians())),
                 ..default()
             },
-            ReferenceFrame::<i64>::default(),
             Rotates(0.001),
             ThePlanet,
             WebMercatorTiledPlanet {
@@ -295,14 +289,13 @@ fn spawn_planet(
 }
 
 fn spawn_moon(
-    parent: Query<Entity, Added<ThePlanet>>,
+    parent: Query<(Entity, &ReferenceFrame<i64>), Added<ThePlanet>>,
     mut commands: Commands,
-    space: Res<RootReferenceFrame<i64>>,
 ) {
     if !parent.get_single().is_ok() {
         return;
     }
-    let parent = parent.single();
+    let (parent, space) = parent.single();
     info!("when_the_planet_appears_spawn_the_moon");
 
     let (moon_cell, moon_pos): (GridCell<i64>, _) = space
@@ -313,17 +306,15 @@ fn spawn_moon(
     commands
         .spawn((
             Name::new("Moon Orbit Reference"),
-            SpatialBundle::default(),
-            GridCell::<i64>::ONE,
-            ReferenceFrame::<i64>::default(),
+            BigReferenceFrameBundle::<i64>::default(),
             Rotates(0.01),
         ))
         .set_parent(parent)
         .with_children(|commands| {
             commands.spawn((
                 Name::new("The Moon"),
-                FloatingSpatialBundle {
-                    grid_position: moon_cell,
+                BigReferenceFrameBundle::<i64> {
+                    cell: moon_cell,
                     transform: Transform::from_translation(moon_pos)
                         .with_rotation(Quat::from_rotation_x(
                             15f32.to_radians(),
@@ -337,26 +328,24 @@ fn spawn_moon(
                     tile_type: "google_moon".into(),
                     planet_radius: crate::universal_const::MOON_RADIUS_M as f64,
                 },
-                ReferenceFrame::<i64>::default(),
                 Rotates(0.05),
             ));
         });
 }
 
 fn reparent_camera(
-    parent: Query<Entity, Added<ThePlanet>>,
+    parent: Query<(Entity, &ReferenceFrame<i64>), Added<ThePlanet>>,
     mut commands: Commands,
     // space: Res<RootReferenceFrame<i64>>,
     mut camera_q: Query<
         (Entity, &mut GridCell<i64>, &mut Transform),
         With<FloatingOrigin>,
     >,
-    space: Res<RootReferenceFrame<i64>>,
 ) {
     if !parent.get_single().is_ok() {
         return;
     }
-    let parent = parent.single();
+    let (parent, space) = parent.single();
     info!("when_the_planet_appears_spawn_the_camera");
 
     let (camera_ent, mut camera_gridcell_ref, mut camera_trans_ref) =
@@ -381,16 +370,15 @@ fn reparent_camera(
 }
 
 fn spawn_the_ball(
-    parent: Query<Entity, Added<ThePlanet>>,
+    parent: Query<(Entity, &ReferenceFrame<i64>), Added<ThePlanet>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    space: Res<RootReferenceFrame<i64>>,
 ) {
     if !parent.get_single().is_ok() {
         return;
     }
-    let parent = parent.single();
+    let (parent, space) = parent.single();
     info!("when_the_planet_appears_spawn_the_ball");
 
     let mut sphere =
