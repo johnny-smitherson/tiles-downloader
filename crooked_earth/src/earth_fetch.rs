@@ -44,7 +44,7 @@ impl Plugin for EarthFetchPlugin {
                 ),
             )
             .add_systems(
-                Update,
+                PostUpdate,
                 (spawn_tile_pls, split_tiles_pls, merge_tiles_pls),
             )
             .add_systems(PreUpdate, (check_post_split, check_post_merge));
@@ -104,7 +104,7 @@ pub struct WebMercatorTile {
     pub cartesian_diagonal: f64,
 }
 
-#[derive(Component, Debug, Clone, Reflect)]
+#[derive(Component, Debug, Clone, Reflect, Default)]
 pub struct WebMercatorLeaf {
     next_check_at: f64,
 }
@@ -219,15 +219,23 @@ fn spawn_tile_pls(
     for (target_ent, req) in q.into_iter().take(128) {
         if let Some(p) = req.webtile.parent_tile {
             if tileinfo_q.get(p).is_err() {
-                warn!("cannot spawn {:?}; parent tile {:?} dissapeared", req.webtile.coord, p);
+                warn!(
+                    "cannot spawn {:?}; parent tile {:?} dissapeared",
+                    req.webtile.coord, p
+                );
                 commands.entity(target_ent).despawn_recursive();
                 continue;
             }
         }
-        let planet_info = if let Ok(planet_info)= planetinfo_q.get(req.webtile.parent_planet) {
+        let planet_info = if let Ok(planet_info) =
+            planetinfo_q.get(req.webtile.parent_planet)
+        {
             planet_info
         } else {
-            warn!("cannot spawn {:?}; planet {:?} dissapeared", req.webtile.coord, req.webtile.parent_planet);
+            warn!(
+                "cannot spawn {:?}; planet {:?} dissapeared",
+                req.webtile.coord, req.webtile.parent_planet
+            );
             commands.entity(target_ent).despawn_recursive();
             continue;
         };
@@ -269,16 +277,13 @@ fn spawn_tile_pls(
                 cartesian_diagonal: tile_diagonal as f64, // <<--- comes out bad from req
             },
             DownloadPending::default(),
+            WebMercatorLeaf::default(),
         );
-        let mut cmd = commands.entity(target_ent);
-        cmd.remove::<SpawnTilePls>()
+        commands
+            .entity(target_ent)
+            .remove::<SpawnTilePls>()
             .insert(bundle)
             .set_parent(req.webtile.parent_planet);
-        if req.is_root {
-            cmd.insert(WebMercatorLeaf {
-                next_check_at: get_current_timestamp() - 2.0 * rand_float(),
-            });
-        }
     }
 
     // MACRO PLZ
@@ -609,9 +614,6 @@ fn check_merge_or_split(
         }
 
         iter_count += 1;
-        commands.entity(leaf_ent).insert(WebMercatorLeaf {
-            next_check_at: now + 0.1 * rand_float() + CHECK_INTERVAL_S,
-        });
         let (should_split, should_merge, maybe_parent) =
             decide_split_or_merge(leaf_ent);
 
@@ -620,9 +622,14 @@ fn check_merge_or_split(
                 .entity(leaf_ent)
                 .remove::<WebMercatorLeaf>()
                 .insert(TileSplitPls);
+            // warn!("check/split pls: {:?}", leaf_ent);
         } else if should_merge {
             let parent = maybe_parent.unwrap();
             merge_set.insert(parent);
+        } else {
+            commands.entity(leaf_ent).insert(WebMercatorLeaf {
+                next_check_at: now + 0.1 * rand_float() + CHECK_INTERVAL_S,
+            });
         }
     }
     for parent in merge_set.into_iter() {
@@ -644,6 +651,7 @@ fn check_merge_or_split(
             for child in parent_info.children_tiles.iter() {
                 commands.entity(*child).remove::<WebMercatorLeaf>();
             }
+            // warn!("check/merge pls: {:?}", parent);
             commands.entity(parent).insert(TileMergePls);
         }
     }
@@ -689,9 +697,11 @@ fn split_tiles_pls(
         }
         commands
             .entity(leaf_ent)
-            .remove::<(WebMercatorLeaf, TileSplitPls)>()
+            .remove::<TileSplitPls>()
+            .remove::<WebMercatorLeaf>()
             .insert(new_leaf_tile)
             .insert(CheckPostSplit::default());
+        // warn!("split tile done {:?}", leaf_ent);
     }
 }
 
@@ -716,10 +726,10 @@ fn merge_tiles_pls(
         commands
             .entity(ent)
             .remove::<TileMergePls>()
-            .insert(WebMercatorLeaf {
-                next_check_at: get_current_timestamp() + 0.016 * rand_float(),
-            })
-            .insert(new_info);
+            .insert(WebMercatorLeaf::default())
+            .insert(new_info)
+            .insert(Visibility::Visible);
+        // warn!("merge tiles done {:?}", ent);
     }
 
     let mut to_despawn = HashSet::new();
@@ -753,7 +763,7 @@ fn check_post_split(
     tileinfo_q: Query<&WebMercatorTile>,
     download_finished_q: Query<&DownloadFinished>,
     mut commands: Commands,
-    dbg_mat: Res<DebugMaterials>,
+    // dbg_mat: Res<DebugMaterials>,
 ) {
     let mut i = 0;
     for (parent_ent, parent_tile, mut check) in new_parent_q.iter_mut() {
@@ -783,7 +793,7 @@ fn check_post_split(
             continue;
         }
         if parent_tile.children_tiles.is_empty() {
-            warn!("checking post split but no children: {:?} dissapear={} empty={}", parent_ent, child_dissapeared, parent_tile.children_tiles.is_empty() );
+            // warn!("checking post split but no children: {:?} dissapear={} empty={}", parent_ent, child_dissapeared, parent_tile.children_tiles.is_empty() );
             commands.entity(parent_ent).remove::<CheckPostSplit>();
             continue;
         }
@@ -794,15 +804,9 @@ fn check_post_split(
         commands
             .entity(parent_ent)
             .remove::<CheckPostSplit>()
-            .insert(Visibility::Hidden)
-            .insert(dbg_mat.mat1.clone());
+            .insert(Visibility::Hidden);
         for child in parent_tile.children_tiles.iter() {
-            commands.entity(*child).insert((
-                WebMercatorLeaf {
-                    next_check_at: get_current_timestamp(),
-                },
-                Visibility::Visible,
-            ));
+            commands.entity(*child).insert((Visibility::Visible,));
         }
     }
 }

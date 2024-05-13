@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crooked_earth::bevy_tokio_tasks::TokioTasksPlugin;
 
 use bevy::{
-    pbr::wireframe::{NoWireframe, Wireframe, WireframeColor, WireframeConfig, WireframePlugin},
+    // pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
         render_resource::WgpuFeatures,
@@ -35,7 +35,8 @@ fn main() {
                     ..default()
                 }),
                 ..default()
-            }).set(RenderPlugin {
+            })
+            .set(RenderPlugin {
                 render_creation: RenderCreation::Automatic(WgpuSettings {
                     // WARN this is a native only feature. It will not work with webgl or webgpu
                     features: WgpuFeatures::POLYGON_MODE_LINE,
@@ -57,15 +58,16 @@ fn main() {
             bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
             // bevy::pbr::wireframe::WireframePlugin
         ))
-        .insert_resource(WireframeConfig {
-            // The global wireframe config enables drawing of wireframes on every mesh,
-            // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
-            // regardless of the global configuration.
-            global: true,
-            // Controls the default color of all wireframes. Used as the default color for global wireframes.
-            // Can be changed per mesh using the `WireframeColor` component.
-            default_color: Color::WHITE,
-        }).add_plugins((
+        // .insert_resource(WireframeConfig {
+        //     // The global wireframe config enables drawing of wireframes on every mesh,
+        //     // except those with `NoWireframe`. Meshes with `Wireframe` will always have a wireframe,
+        //     // regardless of the global configuration.
+        //     global: true,
+        //     // Controls the default color of all wireframes. Used as the default color for global wireframes.
+        //     // Can be changed per mesh using the `WireframeColor` component.
+        //     default_color: Color::WHITE,
+        // })
+        .add_plugins((
             crooked_earth::earth_fetch::EarthFetchPlugin {},
             crooked_earth::spawn_universe::SpawnUniversePlugin {},
             crooked_earth::input_events::InputEventsPlugin {},

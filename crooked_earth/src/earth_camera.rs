@@ -101,7 +101,12 @@ impl EarthCamera {
 
 fn read_camera_input_events(
     mut camera_events: EventReader<CameraMoveEvent>,
-    mut camera_q: Query<(&mut EarthCamera, &mut Transform, &mut GridCell<i64>, &Parent)>,
+    mut camera_q: Query<(
+        &mut EarthCamera,
+        &mut Transform,
+        &mut GridCell<i64>,
+        &Parent,
+    )>,
     space_q: Query<&big_space::reference_frame::ReferenceFrame<i64>>,
 ) {
     let events: Vec<_> = camera_events.read().collect();

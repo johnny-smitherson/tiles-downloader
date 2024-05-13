@@ -1,5 +1,3 @@
-use std::default;
-
 use bevy::prelude::*;
 /// Example with spheres at the scale and distance of the earth and moon around the sun, at 1:1
 /// scale. The earth is rotating on its axis, and the camera is in this reference frame, to
@@ -7,9 +5,9 @@ use bevy::prelude::*;
 use bevy::{core_pipeline::bloom::BloomSettings, render::camera::Exposure};
 
 use big_space::{
+    bundles::{BigReferenceFrameBundle, BigSpaceBundle},
     // camera::CameraController,
     reference_frame::ReferenceFrame,
-    bundles::{BigSpaceBundle, BigSpatialBundle, BigReferenceFrameBundle},
     FloatingOrigin,
     GridCell,
 };
@@ -113,33 +111,37 @@ fn rotate(
 
 fn spawn_universe(mut commands: Commands) {
     info!("spawn universe");
-    let universe_id = commands.spawn((
-        BigSpaceBundle::<i64>::default(),
-        TheUniverse,
-        Name::new("The Universe"),
-    )).id();
+    let universe_id = commands
+        .spawn((
+            BigSpaceBundle::<i64>::default(),
+            TheUniverse,
+            Name::new("The Universe"),
+        ))
+        .id();
     info!("setup_camera");
-    commands.spawn((
-        Name::new("main 3D camera"),
-        Camera3dBundle {
-            transform: Transform::from_translation(Vec3::ZERO)
-                .looking_to(Vec3::NEG_Z, Vec3::Y),
-            camera: Camera {
-                hdr: true,
+    commands
+        .spawn((
+            Name::new("main 3D camera"),
+            Camera3dBundle {
+                transform: Transform::from_translation(Vec3::ZERO)
+                    .looking_to(Vec3::NEG_Z, Vec3::Y),
+                camera: Camera {
+                    hdr: true,
+                    ..default()
+                },
+                exposure: Exposure::SUNLIGHT,
                 ..default()
             },
-            exposure: Exposure::SUNLIGHT,
-            ..default()
-        },
-        BloomSettings::default(),
-        GridCell::<i64>::ZERO,
-        FloatingOrigin, // Important: marks the floating origin entity for rendering.
-        // CameraController::default() // Built-in camera controller
-        //     .with_speed_bounds([10e-18, 10e35])
-        //     .with_smoothness(0.9, 0.8)
-        //     .with_speed(1.0),
-        TheCamera,
-    )).set_parent(universe_id);
+            BloomSettings::default(),
+            GridCell::<i64>::ZERO,
+            FloatingOrigin, // Important: marks the floating origin entity for rendering.
+            // CameraController::default() // Built-in camera controller
+            //     .with_speed_bounds([10e-18, 10e35])
+            //     .with_smoothness(0.9, 0.8)
+            //     .with_speed(1.0),
+            TheCamera,
+        ))
+        .set_parent(universe_id);
 }
 
 fn spawn_stars(
