@@ -49,6 +49,7 @@ fn main() {
         .add_plugins((
             big_space::BigSpacePlugin::<i64>::default(),
             // big_space::debug::FloatingOriginDebugPlugin::<i64>::default(),
+            // big_space::debug::FloatingOriginDebugPlugin::<i64>::default(),
             // big_space::camera::CameraControllerPlugin::<i64>::default(),
             // bevy_framepace::FramepacePlugin,
         ))

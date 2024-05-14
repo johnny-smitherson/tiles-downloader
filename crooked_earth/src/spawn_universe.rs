@@ -4,6 +4,7 @@ use bevy::prelude::*;
 /// demonstrate how high precision nested reference frames work at large scales.
 use bevy::{core_pipeline::bloom::BloomSettings, render::camera::Exposure};
 
+use big_space::BigSpatialBundle;
 use big_space::{
     bundles::{BigReferenceFrameBundle, BigSpaceBundle},
     // camera::CameraController,
@@ -37,7 +38,8 @@ impl Plugin for SpawnUniversePlugin {
             .add_systems(Update, spawn_planet)
             .add_systems(Update, spawn_moon)
             .add_systems(Update, reparent_camera)
-            .add_systems(Update, spawn_the_ball);
+            .add_systems(Update, spawn_the_ball)
+            .add_systems(Update, resize_minimap);
     }
 }
 
@@ -46,6 +48,12 @@ pub struct TheUniverse;
 
 #[derive(Component, Debug, Reflect)]
 pub struct TheCamera;
+
+#[derive(Component, Debug, Reflect)]
+pub struct MinimapCamera;
+
+#[derive(Component, Debug, Reflect)]
+pub struct MinimapUiNode;
 
 #[derive(Component, Debug, Reflect)]
 pub struct TheSun;
@@ -109,7 +117,8 @@ fn rotate(
     }
 }
 
-fn spawn_universe(mut commands: Commands) {
+fn spawn_universe(mut commands: Commands,
+	windows: Query<&Window>,) {
     info!("spawn universe");
     let universe_id = commands
         .spawn((
@@ -119,13 +128,14 @@ fn spawn_universe(mut commands: Commands) {
         ))
         .id();
     info!("setup_camera");
-    commands
+    let maximap = commands
         .spawn((
             Name::new("main 3D camera"),
             Camera3dBundle {
                 transform: Transform::from_translation(Vec3::ZERO)
                     .looking_to(Vec3::NEG_Z, Vec3::Y),
                 camera: Camera {
+                    order: 0,
                     hdr: true,
                     ..default()
                 },
@@ -141,7 +151,72 @@ fn spawn_universe(mut commands: Commands) {
             //     .with_speed(1.0),
             TheCamera,
         ))
-        .set_parent(universe_id);
+        .set_parent(universe_id).id();
+    let main_ui_node = commands.spawn((
+		TargetCamera(maximap),
+        Name::new("Main UI Node"),
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
+                ..default()
+            },
+            ..default()
+        },
+	)).id();
+
+    info!("setup minimap");
+	let minimap_camera_id = commands.spawn((
+        GridCell::<i64>::ZERO,
+        Name::new("Minimap Camera"),
+		Camera3dBundle {
+			camera: Camera {
+				order: 1,
+                hdr: true,
+				clear_color: ClearColorConfig::None,
+				..default()
+			},
+            exposure: Exposure::SUNLIGHT,
+			..default()
+		},
+		MinimapCamera,
+	)).id();
+
+    commands
+    .spawn((
+        TargetCamera(minimap_camera_id),
+        Name::new("Minimap UI Node"),
+        MinimapUiNode,
+        NodeBundle {
+            style: Style {
+                width: Val::Percent(100.),
+                height: Val::Percent(100.),
+                ..default()
+            },
+            ..default()
+        },
+    )).set_parent(main_ui_node);
+
+}
+
+fn resize_minimap(
+	windows: Query<&Window>,
+	mut resize_events: EventReader<bevy::window::WindowResized>,
+	mut minimap: Query<&mut Camera, With<MinimapCamera>>,
+) {
+	for resize_event in resize_events.read() {
+		let window = windows.get(resize_event.window).unwrap();
+		let mut minimap = minimap.single_mut();
+        let size = window.resolution.physical_width().min(window.resolution.physical_height()) / 3;
+		minimap.viewport = Some(bevy::render::camera::Viewport {
+			physical_position: UVec2::new(
+				window.resolution.physical_width() - size,
+				window.resolution.physical_height() - size,
+			),
+			physical_size: UVec2::new(size, size),
+			..default()
+		});
+	}
 }
 
 fn spawn_stars(
@@ -341,8 +416,12 @@ fn reparent_camera(
     // space: Res<RootReferenceFrame<i64>>,
     mut camera_q: Query<
         (Entity, &mut GridCell<i64>, &mut Transform),
-        With<FloatingOrigin>,
+        With<TheCamera>,
     >,
+    mut minimap_camera_q:   Query<
+    (Entity, &mut GridCell<i64>, &mut Transform),
+    (Without<TheCamera>, With<MinimapCamera>),
+>,
 ) {
     if !parent.get_single().is_ok() {
         return;
@@ -369,6 +448,11 @@ fn reparent_camera(
     camera_trans_ref.rotation = tr_big.rotation;
     camera_trans_ref.translation = new_pos;
     *camera_gridcell_ref = new_cell;
+
+    let (minimap_ent, mut minimap_cell, mut minimap_tf) = minimap_camera_q.single_mut();
+    commands.entity(minimap_ent).set_parent(parent);
+    *minimap_cell = new_cell;
+    *minimap_tf = *camera_trans_ref;
 }
 
 fn spawn_the_ball(

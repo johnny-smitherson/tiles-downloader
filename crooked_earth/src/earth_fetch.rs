@@ -264,7 +264,7 @@ fn spawn_tile_pls(
                 visibility: if req.is_root {
                     Visibility::Visible
                 } else {
-                    Visibility::Hidden
+                    Visibility::Visible //Hidden !!
                 },
                 ..default()
             },
@@ -392,7 +392,7 @@ fn start_planet_tile_download(
         return;
     }
     let running_count = running_tiles.iter().count() as i32;
-    let max_iter = 100 - running_count;
+    let max_iter = 221 - running_count;
     if max_iter <= 0 {
         return;
     }
@@ -813,7 +813,7 @@ fn check_post_split(
         commands
             .entity(parent_ent)
             .remove::<CheckPostSplit>()
-            .insert(Visibility::Hidden);
+            .insert(Visibility::Visible); // !!! Hidden
         for child in parent_tile.children_tiles.iter() {
             commands.entity(*child).insert((Visibility::Visible,));
         }
