@@ -32,7 +32,7 @@ impl Plugin for EarthFetchPlugin {
             .add_systems(Update, spawn_root_planet_tiles)
             .add_systems(Update, insert_downloaded_planet_tiles)
             .add_systems(Update, start_planet_tile_download)
-            .add_systems(Update, set_tiles_pending_when_planet_changes)
+            .add_systems(PostUpdate, set_tiles_pending_when_planet_changes)
             .add_systems(
                 Startup,
                 (create_standard_material, spawn_tile_fetch_channel),
@@ -106,7 +106,7 @@ pub struct WebMercatorTile {
 
 #[derive(Component, Debug, Clone, Reflect, Default)]
 pub struct WebMercatorLeaf {
-    next_check_at: f64,
+    check_after: f64,
 }
 
 #[derive(Debug)]
@@ -400,8 +400,13 @@ fn start_planet_tile_download(
     let dispatch_count: usize = 16;
     let (task_tx, task_rx) = crossbeam_channel::bounded(dispatch_count);
 
+    // sort tiles after try_after time desc
+    use rand::prelude::*;
+    let mut rng = rand::thread_rng();
+    let pending_tiles: Vec<_> = pending_tiles.iter().filter(|k| k.3.try_after < t0).collect::<Vec<_>>().choose_multiple(&mut rng, dispatch_count).cloned().collect();
+
     for (target, tile, parent, pending_info) in
-        pending_tiles.iter().take(dispatch_count)
+        pending_tiles.into_iter()
     {
         if t0 < pending_info.try_after {
             continue;
@@ -595,10 +600,14 @@ fn check_merge_or_split(
     const CHECK_INTERVAL_S: f64 = 1.0;
     let mut iter_count = 0;
     const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.3;
+    
+    use rand::prelude::*;
+    let mut rng = rand::thread_rng();
+    let leaf_q2: Vec<_> = leaf_q.iter().filter(|k| k.1.check_after < now).collect::<Vec<_>>().choose_multiple(&mut rng, 128).cloned().collect();
 
     let mut merge_set = HashSet::<Entity>::new();
-    for (leaf_ent, leaf_marker) in leaf_q.iter() {
-        if now < leaf_marker.next_check_at {
+    for (leaf_ent, leaf_marker) in leaf_q2.into_iter() {
+        if now < leaf_marker.check_after {
             continue;
         }
         if iter_count >= 128 {
@@ -628,7 +637,7 @@ fn check_merge_or_split(
             merge_set.insert(parent);
         } else {
             commands.entity(leaf_ent).insert(WebMercatorLeaf {
-                next_check_at: now + 0.1 * rand_float() + CHECK_INTERVAL_S,
+                check_after: now + 0.1 * rand_float() + CHECK_INTERVAL_S,
             });
         }
     }

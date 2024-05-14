@@ -51,7 +51,13 @@ async fn main() -> rocket_anyhow::Result<()> {
     // let _fetch_manager = tokio::spawn(fetch::fetch_loop());
     let _proxy_manager = tokio::spawn(proxy_manager::proxy_manager_loop());
 
+    let config = rocket::Config {
+        log_level: rocket::config::LogLevel::Critical,
+        workers: 16,
+        ..Default::default()
+    };
     let _rocket = rocket::build()
+    .configure(config)
         .mount("/", http_api::get_api_routes())
         .mount("/", http_pages::get_page_routes())
         .attach(Template::fairing())
