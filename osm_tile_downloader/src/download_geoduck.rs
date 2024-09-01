@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 lazy_static::lazy_static! {
     pub static ref OVERT_THEMES: Vec<(String, String)> = overt_geoduck::OVERT_TABLES.iter().filter(|x| !x.1.eq("*")).map(|(x, y)| (x.to_string(), y.to_string())).collect();
 }
-pub const GEODUCK_ZOOM_LEVEL: u8 = 10;
+pub const GEODUCK_ZOOM_LEVEL: u8 = 11;
 pub const PARQUET_MAX_ZOOM_LEVEL: u8 = 16;
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]

@@ -41,7 +41,18 @@ pub struct LinksConfig {
     pub tile_servers: Vec<TileServerConfig>,
     pub socks5_scrape_servers: Vec<Socks5ProxyScraperConfig>,
     pub geo_search_url: String,
+    pub topography_servers: Vec<TopographyServerConfig>,
 }
+
+#[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
+pub struct TopographyServerConfig {
+    pub name: String,
+    pub comment: String,
+    pub url: String,
+    pub download_zoomlevel: u32,
+    pub scale_zoomlevel: u32,
+}
+
 
 #[derive(Deserialize, Clone, Debug, Serialize, PartialEq)]
 pub struct TileServerConfig {

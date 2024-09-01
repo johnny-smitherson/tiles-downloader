@@ -62,6 +62,13 @@ url = "https://freeproxyupdate.com/germany-de/socks5"
 url = "https://www.vpnside.com/proxy/list/"
 name = "vpnside.com"
 extract_method = "html_table"
+
+[[socks5_scrape_servers]]
+url = "https://advanced.name/freeproxy?type=socks5"
+name = "advanced.name"
+extract_method = "html_table"
+
+
 # CLOUDFLARE "javascript and cookies"
 # [[socks5_scrape_servers]]
 # url = "https://rotatingproxies.com/free/get-proxies.php?proxy_anonymity=all&proxy_protocol=socks5h&proxy_location=WW"
@@ -99,10 +106,10 @@ url = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/p
 name = "github.com.proxifly"
 extract_method = "txt"
 
-# [[socks5_scrape_servers]]
-# url = "https://spys.one/en/socks-proxy-list/"
-# name = "spys.one"
-# extract_method = "html_table"
+[[socks5_scrape_servers]]
+url = "https://spys.one/en/socks-proxy-list/"
+name = "spys.one"
+extract_method = "html_table"
 
 [[socks5_scrape_servers]]
 url = "https://id.gather-proxy.com/ProxyApi/ProxyAndSocks?page_num=1&type=Socks5&country=all"
@@ -119,6 +126,15 @@ url = "http://pubproxy.com/api/proxy?format=txt&type=socks5&limit=5"
 name = "pubproxy.com"
 extract_method = "txt"
 
+[[socks5_scrape_servers]]
+url = "http://free-proxy.cz/en/proxylist/country/all/socks5/ping/all"
+name = "free-proxy.cz"
+extract_method = "html_table"
+
+[[socks5_scrape_servers]]
+url = "https://proxybros.com/free-proxy-list/socks5/1/"
+name = "proxybros.com"
+extract_method = "html_table"
 
 ######################################################################
 # TILES - NOT EARTH
@@ -389,3 +405,58 @@ planet = "earth"
 # max_level = 24
 # img_type = "png"
 # map_type = "tiles"
+
+
+#############################################################
+########        GLOBAL TOPOGRAPHY SERVERS           ###########
+#############################################################
+
+# opentopo api limit = 50M points / pic = 7000 x 7000
+# >>> def zoomlevel(precision_m, max_res_m): import math; return 1+math.ceil(math.log2(40075016 / (precision_m * max_res_m))) 
+# ...
+
+
+# >>> zoomlevel(500, 7000)
+# 5
+# >>> zoomlevel(500, 256)
+# 10
+
+
+# >>> zoomlevel(90, 7000)  
+# 7
+# >>> zoomlevel(90, 256)
+# 12
+
+
+# >>> zoomlevel(30, 7000) 
+# 9
+# >>> zoomlevel(30, 256)
+# 14
+
+
+[[topography_servers]]
+name = "opentopography_500m"
+comment = """ https://portal.opentopography.org/apidocs/#/Public/getGlobalDem 
+                SRTM15Plus (Global Bathymetry SRTM15+ V2.1 500m)"""
+url = "https://portal.opentopography.org/API/globaldem?demtype=SRTM15Plus&south={south}&north={north}&west={west}&east={east}&outputFormat=GTiff&API_Key=demoapikeyot2022"
+download_zoomlevel = 5
+scale_zoomlevel = 11
+
+
+
+[[topography_servers]]
+name = "opentopography_90m"
+comment = """ https://portal.opentopography.org/apidocs/#/Public/getGlobalDem 
+                SRTMGL3 (SRTM GL3 90m) """
+url = "https://portal.opentopography.org/API/globaldem?demtype=SRTMGL3&south={south}&north={north}&west={west}&east={east}&outputFormat=GTiff&API_Key=demoapikeyot2022"
+download_zoomlevel = 7
+scale_zoomlevel = 13
+
+
+[[topography_servers]]
+name = "opentopography_30m"
+comment = """ https://portal.opentopography.org/apidocs/#/Public/getGlobalDem
+                 SRTMGL1 (SRTM GL1 30m) """
+url = "https://portal.opentopography.org/API/globaldem?demtype=SRTMGL1&south={south}&north={north}&west={west}&east={east}&outputFormat=GTiff&API_Key=demoapikeyot2022"
+download_zoomlevel = 9
+scale_zoomlevel = 15
