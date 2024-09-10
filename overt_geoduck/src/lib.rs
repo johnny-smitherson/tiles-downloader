@@ -1,12 +1,14 @@
 use anyhow::Context;
 // use duckdb::arrow::record_batch::RecordBatch;
 // use duckdb::arrow::util::pretty::pretty_format_batches;
-use duckdb::Connection;
+// use duckdb::Connection;
 use rand::Rng;
 use std::collections::HashMap;
 use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 // use std::path::PathBuf;
+
+#[macro_use(defer)] extern crate scopeguard;
 
 const OVERT_LOCATION: &str = "s3://overturemaps-us-west-2/release";
 const OVERT_VERSION: &str = "2024-04-16-beta.0";
@@ -41,15 +43,16 @@ pub struct OvertDataType {
 }
 
 const SQL_INIT_SETTINGS: &str = "
-INSTALL spatial;
-INSTALL httpfs;
-LOAD spatial;
-LOAD httpfs;
-SET s3_region='us-west-2';
+SET home_directory='{temp_directory}';
+SET temp_directory = '{temp_directory}';
 SET memory_limit = '1900MB';
 SET threads TO 4;
 SET enable_progress_bar = true;
-SET temp_directory = '{temp_directory}';
+
+LOAD './libexec/duck-extensions/v1.1.0/windows_amd64/httpfs.duckdb_extension';
+LOAD './libexec/duck-extensions/v1.1.0/windows_amd64/spatial.duckdb_extension';
+
+SET s3_region='us-west-2';
 ";
 
 const SQL_CREATE_VIEW_FROM_S3: &str = "
@@ -163,17 +166,29 @@ pub fn download_geoparquet(
     if !OVERT_TABLES.contains(&(theme, _type)) {
         anyhow::bail!("Data Type '{:?}' does not exist, see OVERT_TABLES", &dt);
     }
-    let conn = get_duck_connection()?;
+    
+    let (init_sql, temp_dir) = get_duck_settings_sql()?;
+    defer!{
+        if std::fs::remove_dir_all(&temp_dir).is_err() {
+            eprintln!("failed to remove temp dir: {:?}", temp_dir);
+        }
+    }
+    let mut sql_all = init_sql.to_owned();
+
     let sql_create = dt.sql_create_view_from_web();
     eprintln!("geoduck: creating online view for {:?}", dt);
-    conn.execute_batch(&sql_create)?;
+    
+    sql_all.push_str(&sql_create);
 
-    let sql_select_to_json = OvertDataType::sql_copy_to_parquet(dt.view_name().as_str(), parquet_out, xmin, xmax, ymin, ymax);
+    let sql = OvertDataType::sql_copy_to_parquet(dt.view_name().as_str(), parquet_out, xmin, xmax, ymin, ymax);
     eprintln!(
         "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n",
         dt, xmin, xmax, ymin, ymax
     );
-    conn.execute_batch(&sql_select_to_json)?;
+    sql_all.push_str(&sql);
+    
+    execute_duck(&sql_all)?;
+
     eprintln!("geoduck: finished downloading file {}", parquet_out);
     if !std::path::PathBuf::from(parquet_out).exists() {
         anyhow::bail!(
@@ -203,17 +218,29 @@ pub fn crop_geoparquet(
     .to_str()
     .context("cannot transform path to string.")?;
 
-    let conn = get_duck_connection()?;
+    let (init_sql, temp_dir) = get_duck_settings_sql()?;
+    defer!{
+        if std::fs::remove_dir_all(&temp_dir).is_err() {
+            eprintln!("failed to remove temp dir: {:?}", temp_dir);
+        }
+    }
+    let mut sql_all = init_sql.to_owned();
+
+    // let conn = get_duck_connection()?;
     let sql_create = OvertDataType::sql_create_view_from_disk("crop_view", parquet_in);
     eprintln!("geoduck: creating offline view for {:?} \n", parquet_in);
-    conn.execute_batch(&sql_create)?;
+    
+    sql_all.push_str(&sql_create);
 
     let sql_select_to_json = OvertDataType::sql_copy_to_parquet("crop_view", parquet_out, xmin, xmax, ymin, ymax);
     eprintln!(
         "geoduck: running SQL query for {:?} xmin={} xmax={} ymin={} ymax={} \n",
         parquet_in, xmin, xmax, ymin, ymax
     );
-    conn.execute_batch(&sql_select_to_json)?;
+    sql_all.push_str(&sql_select_to_json);
+
+    execute_duck(&sql_all)?;
+
     eprintln!("geoduck: finished cropping into file {}", parquet_out);
     if !std::path::PathBuf::from(parquet_out).exists() {
         anyhow::bail!(
@@ -226,8 +253,8 @@ pub fn crop_geoparquet(
     Ok(std::fs::metadata(&parquet_out)?.file_size() as usize)
 }
 
-fn get_duck_connection() -> anyhow::Result<duckdb::Connection> {
-    let conn = Connection::open_in_memory()?;
+fn get_duck_settings_sql() -> anyhow::Result<(String, String)> {
+    // returns (SQL, temp_dir)
     eprintln!("geoduck: initializing");
     
     let tmp_dir = format!(".tmp/{}", rand::thread_rng().gen::<u128>()) ;
@@ -239,7 +266,21 @@ fn get_duck_connection() -> anyhow::Result<duckdb::Connection> {
     let sql = strfmt::strfmt(SQL_INIT_SETTINGS, &map)
     .expect("sql: failed strfmt on sql");
 
+    Ok((sql, tmp_dir))
+}
 
-    conn.execute_batch(&sql)?;
-    Ok(conn)
+fn execute_duck(sql: &String) -> anyhow::Result<()> {
+    let duck_exe = "./libexec/duckdb.1.1.0.exe";
+
+    let proc_out = std::process::Command::new(duck_exe)
+    .args(["-ascii", "-bail", "-batch", "-c", sql, "-no-stdin"])
+    .stdout(std::process::Stdio::inherit())
+    .stderr(std::process::Stdio::inherit())
+    .status();
+
+    if proc_out.is_err() || !proc_out.unwrap().success() {
+        anyhow::bail!("failed to execute the duck. \n SQL: \n{sql}\n^^^\n");
+    }
+
+    Ok(())
 }

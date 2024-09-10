@@ -32,10 +32,10 @@ pub struct GeoDuckSegmentSummary {
 impl DownloadId for OvertureMapsSegment {
     type TParseResult = GeoDuckSegmentSummary;
     fn get_version() -> usize {
-        3
+        4
     }
     fn get_max_parallel() -> i64 {
-        6
+        10
     }
     fn parent(&self) -> Option<Self> {
         if self.z <= GEODUCK_ZOOM_LEVEL {
@@ -150,7 +150,7 @@ impl DownloadId for OvertureMapsSegment {
         }
     }
     fn get_retry_count() -> u8 {
-        2
+        3
     }
 }
 
