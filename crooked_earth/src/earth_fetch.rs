@@ -591,7 +591,7 @@ fn check_merge_or_split(
             && tile_info.coord.z < tileserver.max_level;
         let should_merge = tile_info.parent_tile.is_some()
             && (tile_info.coord.z > tileserver.max_level
-                || (screen_coverage < SCREEN_COVERAGE_FOR_SPLIT / 4.0));
+                || (screen_coverage < SCREEN_COVERAGE_FOR_SPLIT / 2.5));
 
         (should_split, should_merge, tile_info.parent_tile)
     };
@@ -599,7 +599,7 @@ fn check_merge_or_split(
     let now = get_current_timestamp();
     const CHECK_INTERVAL_S: f64 = 1.0;
     let mut iter_count = 0;
-    const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.3;
+    const SCREEN_COVERAGE_FOR_SPLIT: f32 = 0.5;
     
     use rand::prelude::*;
     let mut rng = rand::thread_rng();
